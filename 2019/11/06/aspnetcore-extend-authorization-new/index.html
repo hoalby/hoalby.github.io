@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述 去年写过一篇《ASP.NET Core 授权的扩展：自定义 Authorize Attribute 和 IApplicationModelProvide》，由于在 ASP.NET Core 3 中，Microsoft.AspNetCore.Mvc.Internal 命名空间下的 AuthorizationApplicationModelProvider 类由 public 被改为了 in">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ASP.NET Core 授权的扩展：使用 IAuthorizationPolicyProvider 的自定义授权策略提供程序">
+<meta property="og:url" content="http://blog.tubumu.com/2019/11/06/aspnetcore-extend-authorization-new/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述 去年写过一篇《ASP.NET Core 授权的扩展：自定义 Authorize Attribute 和 IApplicationModelProvide》，由于在 ASP.NET Core 3 中，Microsoft.AspNetCore.Mvc.Internal 命名空间下的 AuthorizationApplicationModelProvider 类由 public 被改为了 in">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/aspnetcore-extend-authorization-new/01.png">
+<meta property="article:published_time" content="2019-11-06T15:01:42.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.801Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="ASP.NET Core">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://blog.tubumu.com/postimages/aspnetcore-extend-authorization-new/01.png">
+
+<link rel="canonical" href="http://blog.tubumu.com/2019/11/06/aspnetcore-extend-authorization-new/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>ASP.NET Core 授权的扩展：使用 IAuthorizationPolicyProvider 的自定义授权策略提供程序 | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2019/11/06/aspnetcore-extend-authorization-new/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ASP.NET Core 授权的扩展：使用 IAuthorizationPolicyProvider 的自定义授权策略提供程序
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2019-11-06 23:01:42" itemprop="dateCreated datePublished" datetime="2019-11-06T23:01:42+08:00">2019-11-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ASP-NET-Core/" itemprop="url" rel="index"><span itemprop="name">ASP.NET Core</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p><img src="/postimages/aspnetcore-extend-authorization-new/01.png"></p>
+<p>去年写过一篇<a href="http://blog.tubumu.com/2018/11/28/aspnetcore-extend-authorization/">《ASP.NET Core 授权的扩展：自定义 Authorize Attribute 和 IApplicationModelProvide》</a>，由于在 <code>ASP.NET Core</code> 3 中，<code>Microsoft.AspNetCore.Mvc.Internal</code> 命名空间下的 <code>AuthorizationApplicationModelProvider</code> 类由 <code>public</code> 被改为了 <code>internal</code>，使得无法方便地将其从容器中 <code>DI</code> 容器中移除，所以不得不回到 <code>IAuthorizationPolicyProvider</code> 上来。</p>
+<p><code>ASP.NET Core</code> 提供了基于角色( <code>Role</code> )、声明( <code>Chaim</code> ) 和策略 ( <code>Policy</code> ) 等的授权方式。在实际应用中，可能采用部门（ <code>Department</code> , 本文采用用户组 <code>Group</code>  ）、职位 ( 可继续沿用 <code>Role</code> )、权限( <code>Permission</code> )的方式进行授权。本文通过自定义 <code>IAuthorizationPolicyProvider</code> 进行扩展。</p>
+<a id="more"></a>
+
+<h2 id="二、PermissionAuthorizeAttribute-IPermissionAuthorizeData"><a href="#二、PermissionAuthorizeAttribute-IPermissionAuthorizeData" class="headerlink" title="二、PermissionAuthorizeAttribute : IPermissionAuthorizeData"></a>二、PermissionAuthorizeAttribute : IPermissionAuthorizeData</h2><p><code>AuthorizeAttribute</code> 类实现了 <code>IAuthorizeData</code> 接口：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">namespace</span> <span class="title">Microsoft.AspNetCore.Authorization</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line">  <span class="comment"><span class="doctag">///</span> Defines the set of data required to apply authorization rules to a resource.</span></span><br><span class="line">  <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">interface</span> <span class="title">IAuthorizeData</span></span><br><span class="line">  &#123;</span><br><span class="line">   <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line">   <span class="comment"><span class="doctag">///</span> Gets or sets the policy name that determines access to the resource.</span></span><br><span class="line">   <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line">   <span class="built_in">string</span> Policy &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">   <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line">   <span class="comment"><span class="doctag">///</span> Gets or sets a comma delimited list of roles that are allowed to access the resource.</span></span><br><span class="line">   <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line">   <span class="built_in">string</span> Roles &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">   <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line">   <span class="comment"><span class="doctag">///</span> Gets or sets a comma delimited list of schemes from which user information is constructed.</span></span><br><span class="line">   <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line">   <span class="built_in">string</span> AuthenticationSchemes &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用 <code>AuthorizeAttribute</code> 不外乎如下几种形式：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[<span class="meta">Authorize</span>]</span><br><span class="line">[<span class="meta">Authorize(<span class="meta-string">&quot;SomePolicy&quot;</span>)</span>]</span><br><span class="line">[<span class="meta">Authorize(Roles = <span class="meta-string">&quot;角色1,角色2&quot;</span>)</span>]</span><br><span class="line">[<span class="meta">Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)</span>]</span><br></pre></td></tr></table></figure>
+
+<p>当然，参数还可以组合起来。另外，<code>Roles</code> 和 <code>AuthenticationSchemes</code> 的值以半角逗号分隔，是 <code>Or</code> 的关系；多个 <code>Authorize</code> 是 <code>And</code> 的关系；<code>Policy</code> 、<code>Roles</code> 和 <code>AuthenticationSchemes</code> 如果同时使用，也是 <code>And</code> 的关系。</p>
+<p>如果要扩展 <code>AuthorizeAttribute</code>，先扩展 <code>IAuthorizeData</code> 增加新的属性：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">interface</span> <span class="title">IPermissionAuthorizeData</span> : <span class="title">IAuthorizeData</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="built_in">string</span> Groups &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="built_in">string</span> Permissions &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>然后定义 AuthorizeAttribute:</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[<span class="meta">AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true, Inherited = true)</span>]</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">PermissionAuthorizeAttribute</span> : <span class="title">Attribute</span>, <span class="title">IPermissionAuthorizeData</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Policy &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Roles &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> AuthenticationSchemes &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Groups &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Permissions &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>现在，在 <code>Controller</code> 或 <code>Action</code> 上就可以这样使用了：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[<span class="meta">PermissionAuthorize(Roles = <span class="meta-string">&quot;经理,副经理&quot;</span>)</span>] <span class="comment">// 经理或副经理</span></span><br><span class="line">[<span class="meta">PermissionAuthorize(Groups = <span class="meta-string">&quot;研发部,生产部&quot;</span>, Roles = <span class="meta-string">&quot;经理&quot;</span></span>] <span class="comment">// 研发部或生产部, 或角色是经理。Groups 和 Roles 是 `Or` 的关系。</span></span><br><span class="line">[<span class="meta">PermissionAuthorize(Groups = <span class="meta-string">&quot;研发部,生产部&quot;</span>, Roles = <span class="meta-string">&quot;经理&quot;</span>, Permissions = <span class="meta-string">&quot;请假审批&quot;</span></span>] <span class="comment">// 研发部经理或生产部经理，或者有请假审批的权限。Groups 、Roles 和 Permissions 是 `Or` 的关系。</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>备注：这和<a href="http://blog.tubumu.com/2018/11/28/aspnetcore-extend-authorization/">《ASP.NET Core 授权的扩展：自定义 Authorize Attribute 和 IApplicationModelProvide》</a>一文不同的是，之前 <code>Groups</code>、<code>Roles</code> 和 <code>Permissions</code> 是 <code>And</code> 的关系，而本文是 <code>Or</code> 的关系。原因在于 <code>AuthorizationPolicy.CombineAsync</code> 方法也会用到 <code>Roles</code>，从而达不到 <code>And</code> 的目的。</p>
+</blockquote>
+<p>数据已经准备好，下一步就是怎么提取出来。通过扩展 <code>AuthorizationApplicationModelProvider</code> 来实现。</p>
+<h2 id="三、PermissionAuthorizeData-IPermissionAuthorizeData"><a href="#三、PermissionAuthorizeData-IPermissionAuthorizeData" class="headerlink" title="三、PermissionAuthorizeData : IPermissionAuthorizeData"></a>三、PermissionAuthorizeData : IPermissionAuthorizeData</h2><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">PermissionAuthorizeData</span> : <span class="title">IPermissionAuthorizeData</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Policy &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Roles &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> AuthenticationSchemes &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Groups &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">string</span> Permissions &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>PermissionAuthorizeData</code>  和 <code>PermissionAuthorizeAttribute</code> 的唯一区别是，后者是 <code>Attribute</code> 。</p>
+<h2 id="四、PermissionAuthorizationRequirement"><a href="#四、PermissionAuthorizationRequirement" class="headerlink" title="四、PermissionAuthorizationRequirement"></a>四、PermissionAuthorizationRequirement</h2><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">PermissionAuthorizationRequirement</span> : <span class="title">AuthorizationHandler</span>&lt;<span class="title">PermissionAuthorizationRequirement</span>&gt;, <span class="title">IAuthorizationRequirement</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">public</span> PermissionAuthorizeData AuthorizeData &#123; <span class="keyword">get</span>; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">PermissionAuthorizationRequirement</span>(<span class="params">PermissionAuthorizeData authorizeData</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        AuthorizeData = authorizeData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">override</span> Task <span class="title">HandleRequirementAsync</span>(<span class="params">AuthorizationHandlerContext context, PermissionAuthorizationRequirement requirement</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">if</span> (context.User == <span class="literal">null</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">return</span> Task.CompletedTask;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 以半角逗号分隔的权限满足&quot;需要&quot;的其中之一即可，角色和分组也类似。</span></span><br><span class="line">        <span class="comment">// 分组、角色和权限三者在此也是 Or 的关系，所以是在尽力去找任一匹配。</span></span><br><span class="line">        <span class="keyword">var</span> found = <span class="literal">false</span>;</span><br><span class="line">        <span class="keyword">if</span> (requirement.AuthorizeData.Permissions != <span class="literal">null</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">var</span> permissionsClaim = context.User.Claims.FirstOrDefault(c =&gt; <span class="built_in">string</span>.Equals(c.Type, PermissionClaimTypes.Permission, StringComparison.OrdinalIgnoreCase));</span><br><span class="line">            <span class="keyword">if</span> (permissionsClaim?.Value != <span class="literal">null</span> &amp;&amp; permissionsClaim.Value.Length &gt; <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">var</span> permissionsClaimSplit = SafeSplit(permissionsClaim.Value);</span><br><span class="line">                <span class="keyword">var</span> permissionsDataSplit = SafeSplit(requirement.AuthorizeData.Permissions);</span><br><span class="line">                found = permissionsDataSplit.Intersect(permissionsClaimSplit).Any();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!found &amp;&amp; requirement.AuthorizeData.Roles != <span class="literal">null</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">var</span> rolesClaim = context.User.Claims.FirstOrDefault(c =&gt; <span class="built_in">string</span>.Equals(c.Type, ClaimTypes.Role, StringComparison.OrdinalIgnoreCase));</span><br><span class="line">            <span class="keyword">if</span> (rolesClaim?.Value != <span class="literal">null</span> &amp;&amp; rolesClaim.Value.Length &gt; <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">var</span> rolesClaimSplit = SafeSplit(rolesClaim.Value);</span><br><span class="line">                <span class="keyword">var</span> rolesDataSplit = SafeSplit(requirement.AuthorizeData.Roles);</span><br><span class="line">                found = rolesDataSplit.Intersect(rolesClaimSplit).Any();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!found &amp;&amp; requirement.AuthorizeData.Groups != <span class="literal">null</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">var</span> groupsClaim = context.User.Claims.FirstOrDefault(c =&gt; <span class="built_in">string</span>.Equals(c.Type, PermissionClaimTypes.Group, StringComparison.OrdinalIgnoreCase));</span><br><span class="line">            <span class="keyword">if</span> (groupsClaim?.Value != <span class="literal">null</span> &amp;&amp; groupsClaim.Value.Length &gt; <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">var</span> groupsClaimSplit = SafeSplit(groupsClaim.Value);</span><br><span class="line">                <span class="keyword">var</span> groupsDataSplit = SafeSplit(requirement.AuthorizeData.Groups);</span><br><span class="line">                found = groupsDataSplit.Intersect(groupsClaimSplit).Any();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (found)</span><br><span class="line">        &#123;</span><br><span class="line">            context.Succeed(requirement);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> Task.CompletedTask;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> IEnumerable&lt;<span class="built_in">string</span>&gt; <span class="title">SafeSplit</span>(<span class="params"><span class="built_in">string</span> source</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">return</span> source.Split(<span class="keyword">new</span>[] &#123; <span class="string">&#x27;,&#x27;</span> &#125;, StringSplitOptions.RemoveEmptyEntries).Select(m =&gt; m.Trim()).Where(m =&gt; !m.IsNullOrWhiteSpace());</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、PermissionAuthorizationPolicyProvider-IAuthorizationPolicyProvider"><a href="#五、PermissionAuthorizationPolicyProvider-IAuthorizationPolicyProvider" class="headerlink" title="五、PermissionAuthorizationPolicyProvider : IAuthorizationPolicyProvider"></a>五、PermissionAuthorizationPolicyProvider : IAuthorizationPolicyProvider</h2><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">PermissionAuthorizationPolicyProvider</span> : <span class="title">IAuthorizationPolicyProvider</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">const</span> <span class="built_in">string</span> PolicyPrefix = <span class="string">&quot;Permission:&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> DefaultAuthorizationPolicyProvider FallbackPolicyProvider &#123; <span class="keyword">get</span>; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">PermissionAuthorizationPolicyProvider</span>(<span class="params">IOptions&lt;AuthorizationOptions&gt; options</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="comment">// ASP.NET Core only uses one authorization policy provider, so if the custom implementation</span></span><br><span class="line">        <span class="comment">// doesn&#x27;t handle all policies (including default policies, etc.) it should fall back to an</span></span><br><span class="line">        <span class="comment">// alternate provider.</span></span><br><span class="line">        <span class="comment">//</span></span><br><span class="line">        <span class="comment">// In this sample, a default authorization policy provider (constructed with options from the </span></span><br><span class="line">        <span class="comment">// dependency injection container) is used if this custom provider isn&#x27;t able to handle a given</span></span><br><span class="line">        <span class="comment">// policy name.</span></span><br><span class="line">        <span class="comment">//</span></span><br><span class="line">        <span class="comment">// If a custom policy provider is able to handle all expected policy names then, of course, this</span></span><br><span class="line">        <span class="comment">// fallback pattern is unnecessary.</span></span><br><span class="line">        FallbackPolicyProvider = <span class="keyword">new</span> DefaultAuthorizationPolicyProvider(options);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Task&lt;AuthorizationPolicy&gt; <span class="title">GetDefaultPolicyAsync</span>(<span class="params"></span>)</span> =&gt; FallbackPolicyProvider.GetDefaultPolicyAsync();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// For ASP.NET Core 3.0</span></span><br><span class="line">    <span class="comment">//public Task&lt;AuthorizationPolicy&gt; GetFallbackPolicyAsync() =&gt; FallbackPolicyProvider.GetFallbackPolicyAsync();</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Task&lt;AuthorizationPolicy&gt; <span class="title">GetPolicyAsync</span>(<span class="params"><span class="built_in">string</span> policyName</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">if</span> (policyName.StartsWith(PolicyPrefix, StringComparison.OrdinalIgnoreCase))</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">var</span> policyValue = policyName.Substring(PolicyPrefix.Length);</span><br><span class="line">            <span class="keyword">var</span> authorizeData = JsonConvert.DeserializeObject&lt;PermissionAuthorizeData&gt;(policyValue);</span><br><span class="line">            <span class="keyword">var</span> policy = <span class="keyword">new</span> AuthorizationPolicyBuilder();</span><br><span class="line">            policy.AddRequirements(<span class="keyword">new</span> PermissionAuthorizationRequirement(authorizeData));</span><br><span class="line">            <span class="keyword">return</span> Task.FromResult(policy.Build());</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// If the policy name doesn&#x27;t match the format expected by this policy provider,</span></span><br><span class="line">        <span class="comment">// try the fallback provider. If no fallback provider is used, this would return </span></span><br><span class="line">        <span class="comment">// Task.FromResult&lt;AuthorizationPolicy&gt;(null) instead.</span></span><br><span class="line">        <span class="keyword">return</span> FallbackPolicyProvider.GetPolicyAsync(policyName);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、Startup"><a href="#六、Startup" class="headerlink" title="六、Startup"></a>六、Startup</h2><p>注册 <code>PermissionAuthorizationPolicyProvider</code> 为单例，以替换内置的 <code>DefaultAuthorizationPolicyProvider</code>。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">services.AddSingleton&lt;IAuthorizationPolicyProvider, PermissionAuthorizationPolicyProvider&gt;();</span><br></pre></td></tr></table></figure>
+
+<h2 id="七、Jwt-示例"><a href="#七、Jwt-示例" class="headerlink" title="七、Jwt 示例"></a>七、Jwt 示例</h2><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">[<span class="meta">Route(<span class="meta-string">&quot;api/[controller]&quot;</span>)</span>]</span><br><span class="line">[<span class="meta">ApiController</span>]</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">ValuesController</span> : <span class="title">ControllerBase</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">readonly</span> JwtSecurityTokenHandler _tokenHandler = <span class="keyword">new</span> JwtSecurityTokenHandler();</span><br><span class="line">    [<span class="meta">HttpGet</span>]</span><br><span class="line">    [<span class="meta">Route(<span class="meta-string">&quot;SignIn&quot;</span>)</span>]</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">async</span> Task&lt;ActionResult&lt;<span class="built_in">string</span>&gt;&gt; SignIn()</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">var</span> user = <span class="keyword">new</span> ClaimsPrincipal(<span class="keyword">new</span> ClaimsIdentity(<span class="keyword">new</span>[]</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 备注：Claim Type: Group 和 Permission 这里使用的是硬编码，应该定义为类似于 ClaimTypes.Role 的常量；另外，下列模拟数据不一定合逻辑。</span></span><br><span class="line">            <span class="keyword">new</span> Claim(ClaimTypes.Name, <span class="string">&quot;Bob&quot;</span>),</span><br><span class="line">            <span class="keyword">new</span> Claim(ClaimTypes.Role, <span class="string">&quot;经理&quot;</span>),  <span class="comment">// 注意：不能使用逗号分隔来达到多个角色的目的，下同。</span></span><br><span class="line">            <span class="keyword">new</span> Claim(ClaimTypes.Role, <span class="string">&quot;副经理&quot;</span>),</span><br><span class="line">            <span class="keyword">new</span> Claim(<span class="string">&quot;Group&quot;</span>, <span class="string">&quot;研发部&quot;</span>),</span><br><span class="line">            <span class="keyword">new</span> Claim(<span class="string">&quot;Group&quot;</span>, <span class="string">&quot;生产部&quot;</span>),</span><br><span class="line">            <span class="keyword">new</span> Claim(<span class="string">&quot;Permission&quot;</span>, <span class="string">&quot;请假审批&quot;</span>),</span><br><span class="line">            <span class="keyword">new</span> Claim(<span class="string">&quot;Permission&quot;</span>, <span class="string">&quot;权限1&quot;</span>),</span><br><span class="line">            <span class="keyword">new</span> Claim(<span class="string">&quot;Permission&quot;</span>, <span class="string">&quot;权限2&quot;</span>),</span><br><span class="line">        &#125;, JwtBearerDefaults.AuthenticationScheme));</span><br><span class="line">        <span class="keyword">var</span> token = <span class="keyword">new</span> JwtSecurityToken(</span><br><span class="line">            <span class="string">&quot;SignalRAuthenticationSample&quot;</span>,</span><br><span class="line">            <span class="string">&quot;SignalRAuthenticationSample&quot;</span>,</span><br><span class="line">            user.Claims,</span><br><span class="line">            expires: DateTime.UtcNow.AddDays(<span class="number">30</span>),</span><br><span class="line">            signingCredentials: SignatureHelper.GenerateSigningCredentials(<span class="string">&quot;1234567890123456&quot;</span>));</span><br><span class="line">        <span class="keyword">return</span> _tokenHandler.WriteToken(token);</span><br><span class="line">    &#125;</span><br><span class="line">    [<span class="meta">HttpGet</span>]</span><br><span class="line">    [<span class="meta">Route(<span class="meta-string">&quot;Test&quot;</span>)</span>]</span><br><span class="line">    [<span class="meta">PermissionAuthorize(Groups = <span class="meta-string">&quot;研发部,生产部&quot;</span>, Roles = <span class="meta-string">&quot;经理&quot;</span>, Permissions = <span class="meta-string">&quot;请假审批&quot;</span></span>] <span class="comment">// 研发部或生产部，或者有请假审批的权限。Groups 、Roles 和 Permission 是 `Or` 的关系。</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">async</span> Task&lt;ActionResult&lt;IEnumerable&lt;<span class="built_in">string</span>&gt;&gt;&gt; Test()</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">var</span> user = HttpContext.User;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> <span class="built_in">string</span>[] &#123; <span class="string">&quot;value1&quot;</span>, <span class="string">&quot;value2&quot;</span> &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="八、下一步"><a href="#八、下一步" class="headerlink" title="八、下一步"></a>八、下一步</h2><p><code>[PermissionAuthorize(Groups = &quot;研发部,生产部&quot;, Roles = &quot;经理&quot;, Permissions = &quot;请假审批&quot;]</code> 这种形式还是不够灵活，哪怕用多个 <code>Attribute</code>, <code>And</code> 和 <code>Or</code> 的逻辑组合不一定能满足需求。可以在 <code>IPermissionAuthorizeData</code> 新增一个 <code>Rule</code> 属性，实现类似的效果：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[<span class="meta">PermissionAuthorize(Rule = <span class="meta-string">&quot;(Groups:研发部,生产部)&amp;&amp;(Roles:请假审批||Permissions:超级权限)&quot;</span></span>]</span><br></pre></td></tr></table></figure>
+
+<p>通过 <code>Rule</code> 计算复杂的授权。</p>
+<h2 id="九、其他"><a href="#九、其他" class="headerlink" title="九、其他"></a>九、其他</h2><p>话说，将规则保存在 <code>Policy</code> 名称中，略显丑陋，虽说官方文档<a target="_blank" rel="noopener" href="https://docs.microsoft.com/zh-cn/aspnet/core/security/authorization/iauthorizationpolicyprovider?view=aspnetcore-3.0">在 ASP.NET Core 中使用 IAuthorizationPolicyProvider 的自定义授权策略提供程序</a>也用类似方式实现了个 Sample 。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a target="_blank" rel="noopener" href="https://docs.microsoft.com/zh-cn/aspnet/core/security/authorization/iauthorizationpolicyprovider?view=aspnetcore-3.0">https://docs.microsoft.com/zh-cn/aspnet/core/security/authorization/iauthorizationpolicyprovider?view=aspnetcore-3.0</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/RainingNight/p/authorize-how-to-work-in-asp-net-core.html">https://www.cnblogs.com/RainingNight/p/authorize-how-to-work-in-asp-net-core.html</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ASP-NET-Core/" rel="tag"># ASP.NET Core</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/09/27/abp-analysis-02/" rel="prev" title="Abp 源码分析（2）：模块">
+      <i class="fa fa-chevron-left"></i> Abp 源码分析（2）：模块
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/12/26/abp-analysis-03/" rel="next" title="Abp 源码分析（3）：DI 和 Autofac">
+      Abp 源码分析（3）：DI 和 Autofac <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81PermissionAuthorizeAttribute-IPermissionAuthorizeData"><span class="nav-text">二、PermissionAuthorizeAttribute : IPermissionAuthorizeData</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81PermissionAuthorizeData-IPermissionAuthorizeData"><span class="nav-text">三、PermissionAuthorizeData : IPermissionAuthorizeData</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81PermissionAuthorizationRequirement"><span class="nav-text">四、PermissionAuthorizationRequirement</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81PermissionAuthorizationPolicyProvider-IAuthorizationPolicyProvider"><span class="nav-text">五、PermissionAuthorizationPolicyProvider : IAuthorizationPolicyProvider</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81Startup"><span class="nav-text">六、Startup</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81Jwt-%E7%A4%BA%E4%BE%8B"><span class="nav-text">七、Jwt 示例</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E4%B8%8B%E4%B8%80%E6%AD%A5"><span class="nav-text">八、下一步</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E5%85%B6%E4%BB%96"><span class="nav-text">九、其他</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

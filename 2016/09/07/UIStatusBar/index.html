@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述状态栏( UIStatusBar )指 iPhone&#x2F;iPad&#x2F;iPod 屏幕顶部用于显示网络、时间和电量等的、高度为20点的控件。状态栏的 windowLevel 为 UIWindowLevelStatusBar ，而 window 的 windowLevel 为 UIWindowLevelNormal 。所以一般情况下，状态栏位于 window 之上。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="关于状态栏( UIStatusBar )的若干问题">
+<meta property="og:url" content="http://blog.tubumu.com/2016/09/07/UIStatusBar/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述状态栏( UIStatusBar )指 iPhone&#x2F;iPad&#x2F;iPod 屏幕顶部用于显示网络、时间和电量等的、高度为20点的控件。状态栏的 windowLevel 为 UIWindowLevelStatusBar ，而 window 的 windowLevel 为 UIWindowLevelNormal 。所以一般情况下，状态栏位于 window 之上。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/UIStatusBar/01.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/UIStatusBar/02.png">
+<meta property="article:published_time" content="2016-09-07T11:08:45.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.799Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="iOS">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://blog.tubumu.com/postimages/UIStatusBar/01.png">
+
+<link rel="canonical" href="http://blog.tubumu.com/2016/09/07/UIStatusBar/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>关于状态栏( UIStatusBar )的若干问题 | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2016/09/07/UIStatusBar/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          关于状态栏( UIStatusBar )的若干问题
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2016-09-07 19:08:45" itemprop="dateCreated datePublished" datetime="2016-09-07T19:08:45+08:00">2016-09-07</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index"><span itemprop="name">iOS</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>状态栏( <code>UIStatusBar</code> )指 iPhone/iPad/iPod 屏幕顶部用于显示网络、时间和电量等的、高度为20点的控件。状态栏的 <code>windowLevel</code> 为 <code>UIWindowLevelStatusBar</code> ，而 window 的 <code>windowLevel</code> 为 <code>UIWindowLevelNormal</code> 。所以一般情况下，状态栏位于 window 之上。</p>
+<a id="more"></a>
+
+<h2 id="二、UIStatusBar-的位置和尺寸"><a href="#二、UIStatusBar-的位置和尺寸" class="headerlink" title="二、UIStatusBar 的位置和尺寸"></a>二、UIStatusBar 的位置和尺寸</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">NSString *statusBarFrame &#x3D; NSStringFromCGRect([UIApplication sharedApplication].statusBarFrame);</span><br><span class="line">NSLog(@&quot;%@&quot;, statusBarFrame);</span><br></pre></td></tr></table></figure>
+
+<p>在 iPhone 6 竖屏测试输出:<br><strong>
+2015-08-04 16:33:47.159 Test[6175:205261] {{0, 0}, {375, 20}}
+</strong><br>在 iPhone 6 横屏测试输出:<br><strong>
+2015-08-04 16:33:52.237 Test[6175:205261] {{0, 0}, {667, 20}}
+</strong><br>在 iPhone 6 Plus 竖屏测试输出:<br><strong>
+2015-08-04 16:35:54.365 Test[6175:205261] {{0, 0}, {414, 20}}
+</strong><br>在 iPhone 6 Plus 横屏测试输出:<br><strong>
+2015-08-04 16:35:56.716 Test[6175:205261] {{0, 0}, {736, 20}}
+</strong></p>
+<p>可见其中 origin.x 和 origin.y 总是0， size.height 总是20， size.width 依赖于不同设备及横竖屏。</p>
+<h2 id="三、UIStatusBarStyle-字体颜色-和背景颜色"><a href="#三、UIStatusBarStyle-字体颜色-和背景颜色" class="headerlink" title="三、UIStatusBarStyle (字体颜色)和背景颜色"></a>三、UIStatusBarStyle (字体颜色)和背景颜色</h2><p><code>UIStatusBarStyle</code> 控制状态栏的字体颜色，在 iOS 7 只支持两种： <code>UIStatusBarStyleDefault</code> 、 <code>UIStatusBarStyleLightContent</code> 。注意，虽然目前表现出来的颜色是黑色或白色，但不是 Black 或 White 之类的，苹果留了一手以防以后改变。 <code>Default</code> 表示深色( Dark )，用于亮色( Light )背景； <code>LightContent</code> 表示亮色( Light )，用于深色( Dark )背景。当然这也不是强制的。<br>在没有导航栏的情况下，状态栏的背景颜色是透明的，可以在View里添加一个20点高度的子 View “伪造”一个背景；在有导航栏的情况下，状态栏的背景颜色和状态栏一样，看起来融为了一体。</p>
+<h2 id="四、App-启动时状态栏控制"><a href="#四、App-启动时状态栏控制" class="headerlink" title="四、App 启动时状态栏控制"></a>四、App 启动时状态栏控制</h2><p>App 启动的时候系统加载需要一定的时间，可以给 App 提供了 Launch Image 或 Launch Screen 以增强用户体验。在启动页显示出来的时候 App 还没有运行，也就谈不上在程序中控制状态栏的字体颜色、显示或隐藏。<br>默认情况下状态栏是显示出来的，并且 Style 为 UIStatusBarStyleDefault ，即黑色。</p>
+<h3 id="1、隐藏"><a href="#1、隐藏" class="headerlink" title="1、隐藏"></a>1、隐藏</h3><p>可以在 Info 中将 <code>Status bar is initially hidden(UIStatusBarHidden)</code> 对应的 Value 设置为 Yes 。也可以在 General 中将 <code>Hide status bar</code> 勾选：<br><img src="/postimages/UIStatusBar/01.png"><br>实际上，上面两种设置方法最终作用到 info.plist 文件。可以直接修改该文件，如果不嫌麻烦又不担心出错的话。如果没有使用基于 ViewController 的状态栏控制，并且 App 内部又需要将状态栏显示出来，可以在 AppDelegate 中设置:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[[UIApplication sharedApplication] setStatusBarHidden:NO];</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、设置字体颜色为白色"><a href="#2、设置字体颜色为白色" class="headerlink" title="2、设置字体颜色为白色"></a>2、设置字体颜色为白色</h3><p>可以在 Info 中将 <code>Status bar style(UIStatusBarStyle)</code> 对应的 Value 设置为 <code>UIStatusBarStyeLightContent</code> 。也可以在 General 中将 <code>Status Bar style</code> 选择为 <code>Light</code> ：<br><img src="/postimages/UIStatusBar/02.png"><br>同样的，上面两种设置方法最终作用到 info.plist 文件。如果没有使用基于 ViewController 的状态栏控制，并且 App 内部又需要将状态栏颜色改为黑色，可以在 AppDelegate 中设置:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[[UIApplication sharedApplication] setStatusBarStyle:UIStatusBarStyleDefault];</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、App-运行时状态栏控制"><a href="#五、App-运行时状态栏控制" class="headerlink" title="五、App 运行时状态栏控制"></a>五、App 运行时状态栏控制</h2><p>新建一个 Xcode 项目，App 默认是基于 ViewController 的状态栏控制，即在 ViewController 重载 <code>prefersStatusBarHidden</code> 、 <code>preferredStatusBarStyle</code> 和 <code>preferredStatusBarUpdateAnimation</code> 三个方法，及在必要时调用 <code>setNeedsStatusBarAppearanceUpdate</code> 方法。<br>如果要使用iOS 7之前的通过 UIApplication 控制状态栏，需在 target 的info.plist中增加一条 <code>View controller-based status bar appearance(UIViewControllerBasedStatusBarAppearance)</code> 并设置为 <strong>NO</strong> 。</p>
+<h3 id="1、View-controller-based-status-bar-appearance-YES-或-info-plist-无此条目"><a href="#1、View-controller-based-status-bar-appearance-YES-或-info-plist-无此条目" class="headerlink" title="1、View controller-based status bar appearance : YES 或 info.plist 无此条目"></a>1、View controller-based status bar appearance : YES 或 info.plist 无此条目</h3><table>
+<thead>
+<tr>
+<th>UIViewController 方法</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>- (BOOL)prefersStatusBarHidden NS_AVAILABLE_IOS(7_0); // Defaults to NO</code></td>
+<td>询问是否隐藏状态栏。</td>
+</tr>
+<tr>
+<td><code>- (UIStatusBarStyle)preferredStatusBarStyle NS_AVAILABLE_IOS(7_0); // Defaults to UIStatusBarStyleDefault</code></td>
+<td>询问状态栏样式( <code>UIStatusBarStyleDefault/UIStatusBarStyleLightContent</code> )。</td>
+</tr>
+<tr>
+<td>// Override to return the type of animation that should be used for status bar changes for this view controller. This currently only affects changes to prefersStatusBarHidden.<br><code>- (UIStatusBarAnimation)preferredStatusBarUpdateAnimation NS_AVAILABLE_IOS(7_0); // Defaults to UIStatusBarAnimationFade</code></td>
+<td>询问状态栏显示或隐藏动画。</td>
+</tr>
+<tr>
+<td>// This should be called whenever the return values for the view controller’s status bar attributes have changed. If it is called from within an animation block, the changes will be animated along with the rest of the animation block.<br><code>- (void)setNeedsStatusBarAppearanceUpdate NS_AVAILABLE_IOS(7_0);</code></td>
+<td>设置需要更新状态栏。主动调用该方法，将间接调用上述三个方法。如果需要动画生效，需：<br><code>[UIView animateWithDuration:0.4 animations:^&#123; [self setNeedsStatusBarAppearanceUpdate]; &#125;];</code></td>
+</tr>
+</tbody></table>
+<h3 id="2、View-controller-based-status-bar-appearance-NO"><a href="#2、View-controller-based-status-bar-appearance-NO" class="headerlink" title="2、View controller-based status bar appearance : NO"></a>2、View controller-based status bar appearance : NO</h3><table>
+<thead>
+<tr>
+<th>UIApplication 方法/属性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>// Setting statusBarHidden does nothing if your application is using the default UIViewController-based status bar system.<br><code>@property(nonatomic,getter=isStatusBarHidden) BOOL statusBarHidden;</code><br><code>- (void)setStatusBarHidden:(BOOL)hidden withAnimation:(UIStatusBarAnimation)animation NS_AVAILABLE_IOS(3_2);</code></td>
+<td>设置是否隐藏状态栏。</td>
+</tr>
+<tr>
+<td>// Setting statusBarHidden does nothing if your application is using the default UIViewController-based status bar system.<br><code>@property(nonatomic) UIStatusBarStyle statusBarStyle; // default is UIStatusBarStyleDefault</code><br><code>- (void)setStatusBarStyle:(UIStatusBarStyle)statusBarStyle animated:(BOOL)animated;</code></td>
+<td>设置状态栏样式( <code>UIStatusBarStyleDefault/UIStatusBarStyleLightContent</code> )。</td>
+</tr>
+</tbody></table>
+<h2 id="六、示例代码"><a href="#六、示例代码" class="headerlink" title="六、示例代码"></a>六、示例代码</h2><p>可以根据是否是基于 ViewController 的状态栏控制来决定是否调用 UIApplication 中控制状态栏的相关方法，也可以直接调用。因为在基于 ViewController 的状态栏控制时，调用 UIApplication 中控制状态栏的相关设置方法会被忽略。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line">@interface ViewController ()</span><br><span class="line"></span><br><span class="line">@property (nonatomic) BOOL statusBarIsHidden;</span><br><span class="line"></span><br><span class="line">@end</span><br><span class="line"></span><br><span class="line">@implementation ViewController</span><br><span class="line"></span><br><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    &#x2F;&#x2F; Do any additional setup after loading the view, typically from a nib.</span><br><span class="line">    self.statusBarIsHidden &#x3D; NO;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)didReceiveMemoryWarning &#123;</span><br><span class="line">    [super didReceiveMemoryWarning];</span><br><span class="line">    &#x2F;&#x2F; Dispose of any resources that can be recreated.</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)viewDidAppear:(BOOL)animated</span><br><span class="line">&#123;</span><br><span class="line">    [super viewDidAppear:animated];</span><br><span class="line"></span><br><span class="line">    [UIApplication sharedApplication].statusBarStyle &#x3D; UIStatusBarStyleDefault;</span><br><span class="line"></span><br><span class="line">    [self performSelector:@selector(setStatusBarHidden:) withObject:@(YES) afterDelay:3.];</span><br><span class="line">    [self performSelector:@selector(setStatusBarHidden:) withObject:@(NO) afterDelay:6.];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)setStatusBarHidden:(BOOL)hidden</span><br><span class="line">&#123;</span><br><span class="line">    self.statusBarIsHidden &#x3D; hidden;</span><br><span class="line">    [UIView animateWithDuration:0.4</span><br><span class="line">                     animations:^&#123;</span><br><span class="line">                         [self setNeedsStatusBarAppearanceUpdate];</span><br><span class="line">                     &#125;];</span><br><span class="line">    [[UIApplication sharedApplication] setStatusBarHidden:hidden withAnimation:UIStatusBarAnimationSlide];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (UIStatusBarStyle)preferredStatusBarStyle</span><br><span class="line">&#123;</span><br><span class="line">    return UIStatusBarStyleDefault;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (BOOL)prefersStatusBarHidden</span><br><span class="line">&#123;</span><br><span class="line">    return self.statusBarIsHidden;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (UIStatusBarAnimation)preferredStatusBarUpdateAnimation</span><br><span class="line">&#123;</span><br><span class="line">    return UIStatusBarAnimationSlide;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">@end</span><br></pre></td></tr></table></figure>
+
+<h2 id="七、自定义状态栏"><a href="#七、自定义状态栏" class="headerlink" title="七、自定义状态栏"></a>七、自定义状态栏</h2><p>见参考资料：<br><a target="_blank" rel="noopener" href="http://www.cocoachina.com/ios/20150804/12845.html">在状态栏上做渐变动画效果</a><br><a target="_blank" rel="noopener" href="http://www.cocoachina.com/design/20131104/7287.html">定制 iOS 7 中的导航栏和状态栏</a><br><a target="_blank" rel="noopener" href="http://www.cocoachina.com/ios/20100427/1242.html">遮挡 iPhone 系统栏实现自定义状态栏的代码</a><br><a target="_blank" rel="noopener" href="http://www.cocoachina.com/ios/20100420/1133.html">把 UIView 覆盖到状态栏上的方法</a></p>
+<blockquote>
+<p>环境：</p>
+</blockquote>
+<ul>
+<li>macOS 10.10.5</li>
+<li>Xcode 6.4(6E35b)</li>
+<li>iOS &gt;= 7.0</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/iOS/" rel="tag"># iOS</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2016/09/07/video-orientation/" rel="prev" title="关于视频方向的若干问题">
+      <i class="fa fa-chevron-left"></i> 关于视频方向的若干问题
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2017/03/10/libuv-analysis-01/" rel="next" title="Libuv 源码分析(1):准备工作">
+      Libuv 源码分析(1):准备工作 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81UIStatusBar-%E7%9A%84%E4%BD%8D%E7%BD%AE%E5%92%8C%E5%B0%BA%E5%AF%B8"><span class="nav-text">二、UIStatusBar 的位置和尺寸</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81UIStatusBarStyle-%E5%AD%97%E4%BD%93%E9%A2%9C%E8%89%B2-%E5%92%8C%E8%83%8C%E6%99%AF%E9%A2%9C%E8%89%B2"><span class="nav-text">三、UIStatusBarStyle (字体颜色)和背景颜色</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81App-%E5%90%AF%E5%8A%A8%E6%97%B6%E7%8A%B6%E6%80%81%E6%A0%8F%E6%8E%A7%E5%88%B6"><span class="nav-text">四、App 启动时状态栏控制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E9%9A%90%E8%97%8F"><span class="nav-text">1、隐藏</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E8%AE%BE%E7%BD%AE%E5%AD%97%E4%BD%93%E9%A2%9C%E8%89%B2%E4%B8%BA%E7%99%BD%E8%89%B2"><span class="nav-text">2、设置字体颜色为白色</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81App-%E8%BF%90%E8%A1%8C%E6%97%B6%E7%8A%B6%E6%80%81%E6%A0%8F%E6%8E%A7%E5%88%B6"><span class="nav-text">五、App 运行时状态栏控制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81View-controller-based-status-bar-appearance-YES-%E6%88%96-info-plist-%E6%97%A0%E6%AD%A4%E6%9D%A1%E7%9B%AE"><span class="nav-text">1、View controller-based status bar appearance : YES 或 info.plist 无此条目</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81View-controller-based-status-bar-appearance-NO"><span class="nav-text">2、View controller-based status bar appearance : NO</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E7%A4%BA%E4%BE%8B%E4%BB%A3%E7%A0%81"><span class="nav-text">六、示例代码</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E8%87%AA%E5%AE%9A%E4%B9%89%E7%8A%B6%E6%80%81%E6%A0%8F"><span class="nav-text">七、自定义状态栏</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述Libuv 官方文档( https:&#x2F;&#x2F;github.com&#x2F;libuv&#x2F;libuv&#x2F;tree&#x2F;v1.x&#x2F;docs )和 uvbook ( http:&#x2F;&#x2F;nikhilm.github.com&#x2F;uvbook&#x2F; ) 对 I&#x2F;O ( event ) 循环有比较详细的介绍。本文首先摘抄&#x2F;抄袭了网络上对官方文档关于 I&#x2F;O( event ) 描述的翻译，并做了必要的补充。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Libuv 源码分析(8):I&#x2F;O ( 或 event ) 循环的运行">
+<meta property="og:url" content="http://blog.tubumu.com/2017/08/20/libuv-analysis-08/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述Libuv 官方文档( https:&#x2F;&#x2F;github.com&#x2F;libuv&#x2F;libuv&#x2F;tree&#x2F;v1.x&#x2F;docs )和 uvbook ( http:&#x2F;&#x2F;nikhilm.github.com&#x2F;uvbook&#x2F; ) 对 I&#x2F;O ( event ) 循环有比较详细的介绍。本文首先摘抄&#x2F;抄袭了网络上对官方文档关于 I&#x2F;O( event ) 描述的翻译，并做了必要的补充。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-08/01.png">
+<meta property="article:published_time" content="2017-08-20T03:30:18.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.804Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="Libuv">
+<meta property="article:tag" content="Libuv 源码分析">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://blog.tubumu.com/postimages/libuv-analysis-08/01.png">
+
+<link rel="canonical" href="http://blog.tubumu.com/2017/08/20/libuv-analysis-08/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Libuv 源码分析(8):I/O ( 或 event ) 循环的运行 | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2017/08/20/libuv-analysis-08/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Libuv 源码分析(8):I/O ( 或 event ) 循环的运行
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2017-08-20 11:30:18" itemprop="dateCreated datePublished" datetime="2017-08-20T11:30:18+08:00">2017-08-20</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Code-Reading/" itemprop="url" rel="index"><span itemprop="name">Code Reading</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>Libuv 官方文档( <a target="_blank" rel="noopener" href="https://github.com/libuv/libuv/tree/v1.x/docs">https://github.com/libuv/libuv/tree/v1.x/docs</a> )和 uvbook ( <a target="_blank" rel="noopener" href="http://nikhilm.github.com/uvbook/">http://nikhilm.github.com/uvbook/</a> ) 对 I/O ( event ) 循环有比较详细的介绍。<br>本文首先摘抄/抄袭了网络上对官方文档关于 I/O( event ) 描述的翻译，并做了必要的补充。</p>
+<a id="more"></a>
+
+<h2 id="二、I-O-或-event-循环"><a href="#二、I-O-或-event-循环" class="headerlink" title="二、I/O ( 或 event ) 循环"></a>二、I/O ( 或 event ) 循环</h2><p>I/O 循环是 Libuv 的核心。它建立了所有 I/O 操作的执行环境，并且被绑定在一个线程之上。我们可以运行多个事件循环，只要每一个都运行在不同的线程之上。Libuv 事件循环(包括其他与事件循环相关的 API 或句柄 )<strong>不是</strong>线程安全的，除非另有说明。<br>事件循环遵循比较普通的单线程异步 I/O 方法：所有(网络) I/O 操作在非阻塞的 socket 上执行，使用给定平台上可用的最佳机制进行轮询( I/O 复用)：在 Linux上使用 <code>epoll</code> ，在 macOS 和其他 BSD 平台上使用 <code>kqueue</code> ，在 sunOS 上使用 <code>event ports</code>，在 Windows 上使用 <code>IOCP</code>。在循环的每次迭代中，会阻塞等待 socket 上的 I/O 活动。一旦可读可写等事件发生，将会调用注册到循环中的回调。</p>
+<h2 id="三、I-O-或-event-循环的运行"><a href="#三、I-O-或-event-循环的运行" class="headerlink" title="三、I/O ( 或 event ) 循环的运行"></a>三、I/O ( 或 event ) 循环的运行</h2><p>为了更好的理解事件循环操作如何进行，下图展示了一个循环迭代的所有阶段。</p>
+<p><img src="/postimages/libuv-analysis-08/01.png"></p>
+<center>图1: I/O ( 或 event ) 循环。</center>
+
+<ol>
+<li>循坏中的” now “被更新为当前时间(单位：纳秒)。事件循环保存“循环开始时”的时间滴答数的目的是为了减少时间相关的系统调用次数，比如在计算定时器是否到期时。</li>
+<li>如果循环是 alive 的，那么表明一个迭代已经开始了，否则的话循环会立即退出。那么，什么时候一个循环被认为是 alive 的呢？答案是如果一个循环中存在活跃及被引用的 handle ( active and ref’d handles， loop 的 <code>active_handles</code> 计数)，活跃的 request (loop 的 <code>active_reqs</code> 队列)或者是正在关闭的 handle ( loop 的 <code>closing_handles</code> 队列)，那么这个循环被认为是 alive 的。</li>
+<li>运行到期的( due )定时器。所有定时器的到期时间基于循环中的” now “，一旦到期则会调用定时器的回调函数。</li>
+<li>调用挂起的( pending )回调。大部分时候， I/O 回调在 I/O 轮询( poll )之后马上被调用，但有时回调会延迟到循环的下一次迭代。该步骤就是调用上一次迭代产生的回调。（Q: 会将哪些回调挂起至下一次循环再调用？为什么要挂起？哪些是处于跨平台考虑才挂起？）</li>
+<li>调用空闲/空转( idle ) handle 回调。Idle 这个名字让人遗憾，活动的空闲/空转 handle 会在循环每次迭代时执行。</li>
+<li>调用准备( prepare )回调 handle 。”准备回调”在阻塞 I/O 之前被调用(即 <code>uv__io_poll</code> 被调用之前)。</li>
+<li>计算 poll 超时时间。如果 poll 一直阻塞，则 loop 本身也一直出于阻塞状态，定时器等其他一次操作将无法获得或再次获得调用；反过来，如果 poll 不阻塞(类似于循环中仅有  idle handle 的情况)，对 CPU 是种极大的浪费。所以需将 poll 超时时间设置成一个合适的值。”计算 poll 超时时间”在阻塞 I/O 之前被调用。下面是超时时间的计算规则：</li>
+</ol>
+<p>① 如果循环的运行模式为 <code>UV_RUN_NOWAIT</code> ，则超时时间为 0 。<br>② 如果循环将要停止(调用 <code>uv_stop</code> 函数，该函数将循环结构的 <code>stop_flag</code> 设置为 1 。)， 则超时时间为 0 。<br>③ 如果没有活动的 handle 和 request ， 则超时时间为 0 。<br>④ 如果存在任何活动的空转( idle ) handle，则超时时间为 0 。( <code>uv_idle_s</code> 、<code>uv_prepare_s</code> 和 <code>uv_check_s</code> 有类似的结构和相似的函数实现。idle 会参与到超时计算中；idle 和 prepare 会在阻塞之前运行 ，而 check 会在阻塞之后运行。 check 见 9 )<br>⑤ 如果存在任何等待关闭的 handle ，则超时时间为 0 。关于”等待关闭的 handle “，见 10 。<br>⑥ 非上述情况，并且没有活动的或接近超时的定时器，则超时时间为 -1 ，表示一直阻塞。</p>
+<ol start="8">
+<li>阻塞 I/O 。循环阻塞上一步计算出来的超时时间那么久。所有监视指定文件描述符的读可操作的 handle 的回调在这里被调用。</li>
+<li>调用检查( check ) handle 回调。”检查回调”在阻塞 I/O 之后被调用。本质上对应于”准备回调”。</li>
+<li>调用关闭( close ) handle 回调。如果 handle 被 <code>uv_close</code> 函数关闭(并指定了回调)，则该回调在这里被调用。(为什么不直接在 <code>uv_close</code> 函数或 <code>uv_XXX_close</code> 函数中直接调用关闭回调？)</li>
+<li>特别地，如果循环的运行模式为 <code>UV_RUN_ONCE</code> ，as it implies forward progress 。可能在阻塞 I/O (超时)后没执行任何 handle 回调，但时间已经过去，所以可能存在到期的定时器，则这些定时器的回调函数得以调用。 </li>
+<li>迭代结束。如果循环的运行模式为 <code>UV_RUN_NOWAIT</code> 或 <code>UV_RUN_ONCE</code> ，迭代结束并且 <code>uv_run</code> 函数返回；如果循环的运行模式为 <code>UV_RUN_DEFAULT</code> , 循环仍然 alive 则继续迭代，否则迭代结束并且 <code>uv_run</code> 函数返回。</li>
+</ol>
+<blockquote>
+<p>重要：Libuv 利用线程池技术使得异步文件 I/O 操作成为可能，但是对于网络 I/O 总是在单个线程中执行，即每个 loop 线程。</p>
+</blockquote>
+<blockquote>
+<p>备注：虽然轮询机制不同, 但 Libuv 使执行模型在 UNIX 系统和 Windows 之间保持一致。</p>
+</blockquote>
+<p>I/O 循环由 <code>uv_run</code> 函数封装, 在使用 Libuv 编程时, 该函数通常在最后才被调用。<code>uv_run</code> 位于源码 src/unix/core.c ( 或 src/win/core.c ) 中：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">uv_run</span><span class="params">(<span class="keyword">uv_loop_t</span>* loop, uv_run_mode mode)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">int</span> timeout;</span><br><span class="line">    <span class="keyword">int</span> r;</span><br><span class="line">    <span class="keyword">int</span> ran_pending;</span><br><span class="line"></span><br><span class="line">    r = uv__loop_alive(loop);</span><br><span class="line">    <span class="keyword">if</span> (!r)</span><br><span class="line">        uv__update_time(loop);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (r != <span class="number">0</span> &amp;&amp; loop-&gt;stop_flag == <span class="number">0</span>) &#123;      <span class="comment">// 2</span></span><br><span class="line">        uv__update_time(loop);                    <span class="comment">// 1</span></span><br><span class="line">        uv__run_timers(loop);                     <span class="comment">// 3</span></span><br><span class="line">        ran_pending = uv__run_pending(loop);      <span class="comment">// 4</span></span><br><span class="line">        uv__run_idle(loop);                       <span class="comment">// 5</span></span><br><span class="line">        uv__run_prepare(loop);                    <span class="comment">// 6</span></span><br><span class="line"></span><br><span class="line">        timeout = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">if</span> ((mode == UV_RUN_ONCE &amp;&amp; !ran_pending) || mode == UV_RUN_DEFAULT)</span><br><span class="line">            timeout = uv_backend_timeout(loop);   <span class="comment">// 7</span></span><br><span class="line"></span><br><span class="line">        uv__io_poll(loop, timeout);               <span class="comment">// 8</span></span><br><span class="line">        uv__run_check(loop);                      <span class="comment">// 9</span></span><br><span class="line">        uv__run_closing_handles(loop);            <span class="comment">// 10</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (mode == UV_RUN_ONCE) &#123;                <span class="comment">// 11</span></span><br><span class="line">            <span class="comment">/* UV_RUN_ONCE implies forward progress: at least one callback must have</span></span><br><span class="line"><span class="comment">             * been invoked when it returns. uv__io_poll() can return without doing</span></span><br><span class="line"><span class="comment">             * I/O (meaning: no callbacks) when its timeout expires - which means we</span></span><br><span class="line"><span class="comment">             * have pending timers that satisfy the forward progress constraint.</span></span><br><span class="line"><span class="comment">             *</span></span><br><span class="line"><span class="comment">             * UV_RUN_NOWAIT makes no guarantees about progress so it&#x27;s omitted from</span></span><br><span class="line"><span class="comment">             * the check.</span></span><br><span class="line"><span class="comment">             */</span></span><br><span class="line">            uv__update_time(loop);</span><br><span class="line">            uv__run_timers(loop);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        r = uv__loop_alive(loop);</span><br><span class="line">        <span class="keyword">if</span> (mode == UV_RUN_ONCE || mode == UV_RUN_NOWAIT)  <span class="comment">// 12</span></span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* The if statement lets gcc compile it to a conditional store. Avoids</span></span><br><span class="line"><span class="comment">     * dirtying a cache line.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">if</span> (loop-&gt;stop_flag != <span class="number">0</span>)</span><br><span class="line">        loop-&gt;stop_flag = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> r;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="四、问题"><a href="#四、问题" class="headerlink" title="四、问题"></a>四、问题</h2><ol>
+<li>会将哪些回调挂起至下一次循环再调用？为什么要挂起？哪些是处于跨平台考虑才挂起？</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a target="_blank" rel="noopener" href="https://github.com/libuv/libuv/tree/v1.x/docs">https://github.com/libuv/libuv/tree/v1.x/docs</a><br><a target="_blank" rel="noopener" href="http://nikhilm.github.com/uvbook/">http://nikhilm.github.com/uvbook/</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Libuv/" rel="tag"># Libuv</a>
+              <a href="/tags/Libuv-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/" rel="tag"># Libuv 源码分析</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017/03/14/libuv-analysis-07/" rel="prev" title="Libuv 源码分析(7):数据结构—复合类型(红黑树、最小二叉堆)">
+      <i class="fa fa-chevron-left"></i> Libuv 源码分析(7):数据结构—复合类型(红黑树、最小二叉堆)
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2017/08/20/libuv-analysis-09/" rel="next" title="(草稿)Libuv 源码分析(9):I/O ( 或 event ) 循环的结构( struct )">
+      (草稿)Libuv 源码分析(9):I/O ( 或 event ) 循环的结构( struct ) <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81I-O-%E6%88%96-event-%E5%BE%AA%E7%8E%AF"><span class="nav-text">二、I&#x2F;O ( 或 event ) 循环</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81I-O-%E6%88%96-event-%E5%BE%AA%E7%8E%AF%E7%9A%84%E8%BF%90%E8%A1%8C"><span class="nav-text">三、I&#x2F;O ( 或 event ) 循环的运行</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E9%97%AE%E9%A2%98"><span class="nav-text">四、问题</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

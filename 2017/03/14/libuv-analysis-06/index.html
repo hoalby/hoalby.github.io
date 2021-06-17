@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述Libuv 用到了一些复合类型的数据结构：队列( Queue )、最小二叉堆( Binary min heap )、红黑树( R-B tree )等。其中队列和最小二叉堆是以宏的形式实现的。本文主要分析 Libuv 队列。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Libuv 源码分析(6):数据结构—复合类型(队列)">
+<meta property="og:url" content="http://blog.tubumu.com/2017/03/14/libuv-analysis-06/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述Libuv 用到了一些复合类型的数据结构：队列( Queue )、最小二叉堆( Binary min heap )、红黑树( R-B tree )等。其中队列和最小二叉堆是以宏的形式实现的。本文主要分析 Libuv 队列。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/01.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/02.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/03.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/04.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/05.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/06.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/09.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/10.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/11.png">
+<meta property="article:published_time" content="2017-03-14T13:16:46.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.804Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="Libuv">
+<meta property="article:tag" content="Libuv 源码分析">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://blog.tubumu.com/postimages/libuv-analysis-06/01.png">
+
+<link rel="canonical" href="http://blog.tubumu.com/2017/03/14/libuv-analysis-06/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Libuv 源码分析(6):数据结构—复合类型(队列) | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2017/03/14/libuv-analysis-06/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Libuv 源码分析(6):数据结构—复合类型(队列)
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2017-03-14 21:16:46" itemprop="dateCreated datePublished" datetime="2017-03-14T21:16:46+08:00">2017-03-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Code-Reading/" itemprop="url" rel="index"><span itemprop="name">Code Reading</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>Libuv 用到了一些复合类型的数据结构：队列( Queue )、最小二叉堆( Binary min heap )、红黑树( R-B tree )等。其中队列和最小二叉堆是以宏的形式实现的。<br>本文主要分析 Libuv 队列。</p>
+<a id="more"></a>
+
+<h2 id="二、Libuv-队列"><a href="#二、Libuv-队列" class="headerlink" title="二、Libuv 队列"></a>二、Libuv 队列</h2><p>各种队列、环形队列的各种实现大致相同又各有差异，本文主要关注 Libuv 对队列的实现。<br>Libuv 中的队列是以双向链表实现的环形(循环)队列。队列的节点的数据类型是”包含两个指针元素的指针数组”，节点的两个元素的值都是指针，指向另(或同)一个节点。节点的 0 号元素指向队列中的下一个节点，1 号元素指向队列中的上一个的节点。</p>
+<blockquote>
+<p>约定: 环形队列的节点是”包含两个指针元素的指针数组”，而”包含两个指针元素的指针数组”不一定是节点。节点的两个元素都指向其他节点或本节点。如果节点在队列中，节点被其他节点或本节点的元素指向两次。当然，在进行入列、出列等操作过程中，会暂时打破这里对节点的约定，但最终能够得到恢复。</p>
+</blockquote>
+<p><img src="/postimages/libuv-analysis-06/01.png"></p>
+<center>图1: 包含多个节点的队列。</center>
+
+<p><img src="/postimages/libuv-analysis-06/02.png"></p>
+<center>图2：只有一个节点的队列(空队列)。特别地，前者可称之为空节点。后者不是环形队列，本文接下来的内容不会用到。</center>
+
+<p>Libuv 中如果队列仅包含一个节点，并且该节点的 0 号元素，即节点的下一个节点指向本节点，则该队列为空，称该队列为空队列。是空队列还是空节点要看在怎样的上下文中。</p>
+<blockquote>
+<p>备注：单纯的队列几无用处。但是当其中一个节点是另一个结构的字段时，如 uv_loop_t 的 wq 字段，可通过字段在结构中的偏移量获取到结构的指针。详见 QUEUE_DATA 宏。</p>
+</blockquote>
+<h2 id="三、Libuv-队列分析准备"><a href="#三、Libuv-队列分析准备" class="headerlink" title="三、Libuv 队列分析准备"></a>三、Libuv 队列分析准备</h2><h3 id="1、-x-变量"><a href="#1、-x-变量" class="headerlink" title="1、 x 变量"></a>1、 x 变量</h3><p>为方便分析，先定义”包含两个指针元素的指针数组”变量: <code>void *x[2]</code> ，类似于 <code>uv_loop_s</code> 的 wq 字段。请注意这里没说 x 一定是队列的的节点。下文会经常用到的 x 变量。<br><img src="/postimages/libuv-analysis-06/03.png"></p>
+<center>图3：变量 x 及其储值，这里不关心 y 和 z 是什么结构以及 y 和 z 是否是同一个对象。</center>
+
+<h3 id="2、数组指针、节点指针和队列指针"><a href="#2、数组指针、节点指针和队列指针" class="headerlink" title="2、数组指针、节点指针和队列指针"></a>2、数组指针、节点指针和队列指针</h3><p>先想象一个普通的数组 <code>int a[2]</code> ，&amp;a 的值虽然和 &amp;a[0] 的值相同，但它们的意义却不同，&amp;a 是指向数组的指针，&amp;a[0]是指向数组 0 号元素的指针(数组名 a 在此不说)。<br>假设有三个变量 q、h、n ，它们都是 <code>void *x[2]</code> 指针数组的指针，赋予它们三种意义：<br>① 指向”包含两个指针元素的指针数组”的指针。包括：<code>QUEUE_INIT</code> 的宏参数 q ，以及 <code>QUEUE_INIT</code> 宏实现过程用到的的 <code>QUEUE_NEXT</code> 和 <code>QUEUE_PREV</code> 的宏参数 q 。<br>② 指向节点的指针。<br>③ 指向队列的指针。和 ② 经常进行角色转换。</p>
+<p><img src="/postimages/libuv-analysis-06/04.png"></p>
+<center>图4: q 与指针数组、队列节点和队列的关系。</center>
+
+<p>在不同的上下文，q 可以认为是指向”包含两个指针元素的指针数组”的指针或指向节点 x 的指针；也可以认为是指向的队列的指针。</p>
+<blockquote>
+<p>约定： 如果认为 q 是指向队列的指针，这时简称队列为 “队列 q “，节点 x 称为  “队列 q 的根节点”，节点 x 的 0 号元素指向的节点 y 称为 “队列 q 的头节点”，节点 x 的 1 号元素指向的节点 z 称为 “队列 q 的尾节点”。</p>
+</blockquote>
+<h2 id="四、Libuv-队列实现分析"><a href="#四、Libuv-队列实现分析" class="headerlink" title="四、Libuv 队列实现分析"></a>四、Libuv 队列实现分析</h2><p>Libuv 队列是以宏实现的。宏分为私有和公开。所谓私有宏，用户代码也可以使用。包括 Libuv 也没严格遵守所谓的私有。</p>
+<blockquote>
+<p>注：在宏中对队列的任何操作，如入列、出列也包括初始化等，产生的最终结果都要保持目标队列作为环形队列的特征。</p>
+</blockquote>
+<h3 id="1、辅助"><a href="#1、辅助" class="headerlink" title="1、辅助"></a>1、辅助</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="keyword">void</span> *QUEUE[<span class="number">2</span>];</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Private macros. */</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT(q)       (*(QUEUE **) &amp;((*(q))[0]))</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_PREV(q)       (*(QUEUE **) &amp;((*(q))[1]))</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_PREV_NEXT(q)  (QUEUE_NEXT(QUEUE_PREV(q)))</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT_PREV(q)  (QUEUE_PREV(QUEUE_NEXT(q)))</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="1-1-QUEUE-类型"><a href="#1-1-QUEUE-类型" class="headerlink" title="1.1 QUEUE 类型"></a>1.1 <code>QUEUE</code> 类型</h4><p>QUEUE 是一个”包含两个指针元素的指针数组”的类型的别名。</p>
+<h4 id="1-2-QUEUE-NEXT-q"><a href="#1-2-QUEUE-NEXT-q" class="headerlink" title="1.2 QUEUE_NEXT(q)"></a>1.2 <code>QUEUE_NEXT(q)</code></h4><p>备注：<br>首先要明确，这里的宏参数 q 至少是指向的”包含两个指针元素的指针数组”的指针。 q 也可以是指向节点的指针，还可以是指向队列的指针(除非知道自己在做什么)。</p>
+<p>作用：<br>取 q 指向的数组的 0 号元素——一个指向、或将要指向另(或同)一个节点的指针。</p>
+<p>算法:<br>无</p>
+<p>分析:<br>为方便分析，参考 <code>QUEUE_INIT</code> 中的语句:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">QUEUE_NEXT(q) = (q);</span><br></pre></td></tr></table></figure>
+
+<p>通常 q 就算不是节点指针，也是指向”包含两个指针元素的指针数组”的指针，将上面定义的 x 变量取地址代入宏：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">QUEUE_NEXT(&amp;x) = (&amp;x);</span><br></pre></td></tr></table></figure>
+
+<p>宏展开后(注：这里的两个 &amp; 都是取地址符而非位与运算符):</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(*(QUEUE **) &amp;((*(&amp;x))[<span class="number">0</span>])) = (&amp;x);</span><br></pre></td></tr></table></figure>
+
+<p>最外层的()是出于运算符优先级的考虑，在本例中不存在这个问题，去掉:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">*(QUEUE **) &amp;((*(&amp;x))[<span class="number">0</span>]) = &amp;x;</span><br></pre></td></tr></table></figure>
+
+<p>x 先取地址再解指针引用，也是出于运算符优先级的考虑，在本例中不存在这个问题，等同于(本例中，实际上 <code>&amp;x</code> 的值等于 x ，也等于 <code>&amp;x[0]</code> )：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">*(QUEUE **) &amp;(x[<span class="number">0</span>]) = &amp;x;</span><br></pre></td></tr></table></figure>
+
+<p>暂时省去 (QUEUE **):</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">* &amp;(x[<span class="number">0</span>]) = &amp;x;</span><br></pre></td></tr></table></figure>
+
+<p>先取地址再解指针引用，省去:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">x[<span class="number">0</span>] = &amp;x;</span><br></pre></td></tr></table></figure>
+
+<p>竟然是直接给数组的 0 元素赋值。</p>
+<p>为什么不像如下两种方式定义 <code>QUEUE_NEXT</code> ，而要搞这么复杂呢？</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">a. <span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT(q)          ((*(q))[0])</span></span><br></pre></td></tr></table></figure>
+
+<p>这样会丢失类型信息。如果这样定义，类似 <code>QUEUE_PREV_PREV</code> 这种嵌套使用将无法工作:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT_PREV(q) (QUEUE_PREV(QUEUE_NEXT(q)))</span></span><br></pre></td></tr></table></figure>
+
+<p>QUEUE_NEXT(q) 的值如果是 <code>void *</code> 类型，外层的 <code>QUEUE_PREV</code> 宏无法工作。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">b. <span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT(q)       ((QUEUE *) ((*(q))[0]))</span></span><br></pre></td></tr></table></figure>
+
+<p>这样是一个常量，不是左值，即无法赋值。如果这样定义，类似如下操作就会失败：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">QUEUE_NEXT(q) = (q);</span><br></pre></td></tr></table></figure>
+
+<p>所以表达式 <code>(*(QUEUE **) &amp;((*(q))[0]))</code> 既带有类型信息，又是一个左值——亦即可以通过 <code>*r = value</code> 赋值，也可以通过 <code>*r</code> 取值。</p>
+<p>实际上有种更好理解但看起来没这么”酷”的定义这 4 个宏的方式：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT(q)       ((*(q))[0])</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_PREV(q)       ((*(q))[1])</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_PREV_NEXT(q)  (QUEUE_NEXT((QUEUE *)QUEUE_PREV(q)))</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT_PREV(q)  (QUEUE_PREV((QUEUE *)QUEUE_NEXT(q)))</span></span><br></pre></td></tr></table></figure>
+
+<p>上述实现将类型强制转换的操作转移到 <code>QUEUE_NEXT_PREV</code> 和 <code>QUEUE_PREV_NEXT</code> 中。<br>但让 <code>QUEUE_NEXT</code> 和 <code>QUEUE_PREV</code> 看起不知道结果是什么类型但并不影响使用，下面的语句可以进行隐式类型转换:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">void</span> *x[<span class="number">2</span>] = ...;</span><br><span class="line">QUEUE *node = QUEUE_NEXT(&amp;x); <span class="comment">// QUEUE *node = (*(&amp;x))[0]; QUEUE *node = x[0];</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="1-2-QUEUE-PREV-q"><a href="#1-2-QUEUE-PREV-q" class="headerlink" title="1.2 QUEUE_PREV(q)"></a>1.2 <code>QUEUE_PREV(q)</code></h4><p>类似于 <code>QUEUE_NEXT</code> ，作用是：取 q 指向的节点的 1 号元素——一个指向、或将要指向另(或同)一个节点的指针。</p>
+<h4 id="1-3-QUEUE-PREV-NEXT-q"><a href="#1-3-QUEUE-PREV-NEXT-q" class="headerlink" title="1.3 QUEUE_PREV_NEXT(q)"></a>1.3 <code>QUEUE_PREV_NEXT(q)</code></h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_PREV_NEXT(q)  (QUEUE_NEXT(QUEUE_PREV(q)))</span></span><br></pre></td></tr></table></figure>
+
+<p>作用是：取 q 指向的节点的 1 号元素，是一个指向另(或同)一个节点的指针，再取指针指向的数组的第 0 个元素——还是一个指向另(或同)一个节点的指针。</p>
+<h4 id="1-4-QUEUE-NEXT-PREV-q"><a href="#1-4-QUEUE-NEXT-PREV-q" class="headerlink" title="1.4 QUEUE_NEXT_PREV(q)"></a>1.4 <code>QUEUE_NEXT_PREV(q)</code></h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_NEXT_PREV(q)  (QUEUE_PREV(QUEUE_NEXT(q)))</span></span><br></pre></td></tr></table></figure>
+
+<p>类似于 <code>QUEUE_PREV_NEXT</code> ，作用是：取 q 指向的节点的 0 号元素，是一个指向另(或同)一个节点的指针，再取指针指向的数组的 1 号元素——还是一个指向另(或同)一个节点。</p>
+<p>总之，上述 4 个宏，都作用在一个”包含两个指针元素的指针数组”的其中一个元素上，类似于操作 x[0] 或 x[1] 。作为右值时，结果都是:返回一个指向节点的指针，也有可能是本数组(本节点，如果指针数组是节点的话)的指针；作为左值时，作用都是: 为数组元素赋值为指向节点的指针，也有可能是本数组(本节点，如果指针数组是节点的话)的指针。</p>
+<h3 id="2、初始化"><a href="#2、初始化" class="headerlink" title="2、初始化"></a>2、初始化</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_INIT(q)                                                         \</span></span><br><span class="line">  <span class="keyword">do</span> &#123;                                                                        \</span><br><span class="line">    QUEUE_NEXT(q) = (q);                                                      \</span><br><span class="line">    QUEUE_PREV(q) = (q);                                                      \</span><br><span class="line">  &#125;                                                                           \</span><br><span class="line">  <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>首先要明确， q 至少是指向的”包含两个指针元素的指针数组”的指针。<br>q 也可以是指向节点的指针或者指向队列的指针，但一般不会。如果队列刚刚被初始化仅包含 1 个节点，重复初始化没必要；如果队列有 2 个或 2 个以上的节点，再次初始化就打破了队列的环形。</p>
+<p>作用：<br>初始化节点。输入一个指向”包含两个指针元素的指针数组”的指针，将数组初始化为一个节点，节点未在任何队列中。而该指针提升成为了指向一个节点的指针。<br>另外还可以这样认为：初始化队列。输入一个指向”包含两个指针元素的指针数组”的指针，将数组初始化为空队列的节点。而该指针提升成为了指向一个空队列的指针。<br>这两种说法很让人纠结。下面的分析按第一种说法来。</p>
+<p>算法：<br>① 将数组的头指针指向本节点。<br>② 将数组的尾指针指向本节点。<br>③ 最终使数组成为一个节点。q 从一个单纯的指向”包含两个指针元素的指针数组”的指针，提升为指向节点的指针。</p>
+<p>分析：<br>假设有定义, <code>void *x[2]</code> 。 <code>&amp;x</code> 对应 q 。<code>QUEUE_INIT</code> 做的工作是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">x[<span class="number">0</span>] = &amp;x;</span><br><span class="line">x[<span class="number">1</span>] = &amp;x;</span><br></pre></td></tr></table></figure>
+
+<p>让 q 指向的”包含两个指针元素的指针数组”的两个元素的值都等于 q，也就是两个元素保存的值是数组本身的内存地址。</p>
+<p>图示：<br><img src="/postimages/libuv-analysis-06/05.png"></p>
+<center>图5: `QUEUE_INIT(q)` 初始化 q</center>
+
+<p>其他：<br><code>QUEUE_INIT</code> 的宏参数，以及宏实现使用的 <code>QUEUE_NEXT</code> 和 <code>QUEUE_PREV</code> 的宏参数，是唯一一处可以将 q 单纯认为是”包含两个指针元素的指针数组”的地方。其他地方 q 、h 、 n 看作要么是指向节点的指针，要么是指向队列的指针——又陷入某种纠结。</p>
+<h3 id="3、在队列尾插入节点"><a href="#3、在队列尾插入节点" class="headerlink" title="3、在队列尾插入节点"></a>3、在队列尾插入节点</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_INSERT_TAIL(h, q)                                               \</span></span><br><span class="line">  <span class="keyword">do</span> &#123;                                                                        \</span><br><span class="line">    QUEUE_NEXT(q) = (h);                                                      \</span><br><span class="line">    QUEUE_PREV(q) = QUEUE_PREV(h);                                            \</span><br><span class="line">    QUEUE_PREV_NEXT(q) = (q);                                                 \</span><br><span class="line">    QUEUE_PREV(h) = (q);                                                      \</span><br><span class="line">  &#125;                                                                           \</span><br><span class="line">  <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>首先要明确，这里的宏参数 h 是指向队列的指针； q 可以是单纯的”包含两个指针元素的指针数组”的指针，也可以是指向节点的指针(或者说 q 指向一个空队列，但不能是包含 2 个或 2 个以上节点的队列)。如果要合并队列，即将源队列的所有节点添加到目标队列，请使用 <code>QUEUE_ADD</code> 。</p>
+<p>作用：<br>入列。简单说法：在队列 h 尾部插入节点 q 。严格说法：在 h 指向的队列尾部插入 q 指向的节点。</p>
+<p>算法：<br>①  节点 q 的上一节点设置为队列 h 的根节点。(作用在 节点 q 上)<br>②  节点 q 的下一节点设置为队列 h 的尾节点。(作用在 节点 q 上)。通过 ① 和 ② ，节点 q 依附到了队列 h 的尾部。<br>③ 队列 h 的原尾节点的下一节点设置为节点 q 。(作用在 h 指向的原尾节点上)<br>③ 队列 h 的根节点的下一节点设置为节前 q 。(作用在 h 指向的根节点上)<br>最终节点 q 成为队列 h 新的尾节点。</p>
+<p>分析：<br>假设有定义, <code>void *x[2]</code> , <code>void *y[2]</code> 。<code>&amp;x</code> 对应 h , &amp;y 对应 q 。 <code>QUEUE_INSERT_TAIL</code> 做的工作是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">y[<span class="number">0</span>] = &amp;x;</span><br><span class="line">y[<span class="number">1</span>] = &amp;(x[<span class="number">1</span>]);</span><br><span class="line">x[<span class="number">1</span>][<span class="number">0</span>] = &amp;y;</span><br><span class="line">x[<span class="number">1</span>] = &amp;y;</span><br></pre></td></tr></table></figure>
+
+<p>注意：<code>x[1][0] = &amp;y;</code> 这行直接运行不过的，而 <code>(*(QUEUE *)x[1])[0] = &amp;y;</code> 虽可以但注意力就转到它处了，保持这行错误的反而容易理解。至于为什么运行不过，原因见上。</p>
+<p>图示：<br>考虑 3 种情况：<br>① 队列 h 包含 1 个节点(空队列)，队列的头节点、尾节点和根节点是同一个节点。<br>② 队列 h 包含 2 个节点，队列的头节点和尾节点是同一个节点。<br>③ 队列 h 包含 3 个或三个以上节点，队列的头节点和尾节点是不同的节点。<br>因为在队列尾部插入节点，除了第一种情况，并不涉及到头节点，从这个角度来看实际上就两种情况。</p>
+<p><img src="/postimages/libuv-analysis-06/06.png"></p>
+<center>图6: 队列 h 包含 1 个节点(空队列)</center>
+![](/postimages/libuv-analysis-06/07.png)
+<center>图7: 队列 h 包含 2 个节点</center>
+![](/postimages/libuv-analysis-06/08.png)
+<center>图8: 队列 h 包含 3 个或三个以上节点</center>
+
+<p>其他：<br>事实上， <code>QUEUE_PREV_NEXT(q) = (q);</code> 可以改为 <code>QUEUE_NEXT(h) = (q);</code> 。</p>
+<h3 id="4、在队列头插入节点"><a href="#4、在队列头插入节点" class="headerlink" title="4、在队列头插入节点"></a>4、在队列头插入节点</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_INSERT_HEAD(h, q)                                               \</span></span><br><span class="line">  <span class="keyword">do</span> &#123;                                                                        \</span><br><span class="line">    QUEUE_NEXT(q) = QUEUE_NEXT(h);                                            \</span><br><span class="line">    QUEUE_PREV(q) = (h);                                                      \</span><br><span class="line">    QUEUE_NEXT_PREV(q) = (q);                                                 \</span><br><span class="line">    QUEUE_NEXT(h) = (q);                                                      \</span><br><span class="line">  &#125;                                                                           \</span><br><span class="line">  <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>插队，在队列 q 头部插入 h 节点。本人最讨厌谁插队，而且是直接插到头。该操作类似于 <code>QUEUE_INSERT_HEAD</code> ，不再分析。<br>另，事实上， <code>QUEUE_NEXT_PREV(q) = (q);</code> 可以改为 <code>QUEUE_PREV(h) = (q);</code> 。</p>
+<h3 id="5、获取头节点"><a href="#5、获取头节点" class="headerlink" title="5、获取头节点"></a>5、获取头节点</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_HEAD(q)                                                         \</span></span><br><span class="line">  (QUEUE_NEXT(q))</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>注意并非出列操作。<br>作用：<br>简单说法：获取队列 q 的头节点。严格说法：获取 q 指向的队列的头节点。<br>算法：<br>无<br>分析：<br>无<br>图示：<br>其他：<br>无</p>
+<h3 id="6、删除节点"><a href="#6、删除节点" class="headerlink" title="6、删除节点"></a>6、删除节点</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_REMOVE(q)                                                       \</span></span><br><span class="line">  <span class="keyword">do</span> &#123;                                                                        \</span><br><span class="line">    QUEUE_PREV_NEXT(q) = QUEUE_NEXT(q);                                       \</span><br><span class="line">    QUEUE_NEXT_PREV(q) = QUEUE_PREV(q);                                       \</span><br><span class="line">  &#125;                                                                           \</span><br><span class="line">  <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>q 必须是在队列中的非根节点。先使用 <code>QUEUE_HEAD</code> 获取到队列的头节点，再使用 <code>QUEUE_REMOVE</code> 可达到出列的作用。 如果对队列的根节点进行删除操作，将会对队列造成破坏。<br>作用：<br>将节点 q 从所在的队列中删除。<br>算法：<br>① 节点 q 的上一节点的下一个节点原本是节点 q 自己，让其设置为节点 q 的下一个节点。(作用在节点 q 的上一个节点上)<br>② 节点 q 的下一节点的上一个节点原本是节点 q 自己，让其设置为节点 q 的上一个节点。(作用在节点 q 的下一个节点上)。通过 ① 和② ，节点 q 依附到了队列 h 的尾部。<br>分析：<br>无<br>图示：<br><img src="/postimages/libuv-analysis-06/09.png"></p>
+<center>图9: 删除节点</center>
+
+<p>其他：<br>对空队列的唯一的根节点进行删除操作不会有任何效果。</p>
+<h3 id="7、遍历元素"><a href="#7、遍历元素" class="headerlink" title="7、遍历元素"></a>7、遍历元素</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* Important note: mutating the list while QUEUE_FOREACH is</span></span><br><span class="line"><span class="comment"> * iterating over its elements results in undefined behavior.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_FOREACH(q, h)                                                   \</span></span><br><span class="line">  <span class="keyword">for</span> ((q) = QUEUE_NEXT(h); (q) != (h); (q) = QUEUE_NEXT(q))</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>使用时需小心，宏中的 for 循环并不完整。 h 是一个队列， q 的类型是 QUEUE * 。<br>作用：<br>遍历队列，将从头节点到尾节点循环赋值给变量 h 。其中包括头节点和尾节点。<br>算法：<br>无<br>分析：<br>无<br>图示：<br>无<br>其他：<br>无</p>
+<h3 id="8、判断队列是否为空"><a href="#8、判断队列是否为空" class="headerlink" title="8、判断队列是否为空"></a>8、判断队列是否为空</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_EMPTY(q)                                                        \</span></span><br><span class="line">  ((<span class="keyword">const</span> QUEUE *) (q) == (<span class="keyword">const</span> QUEUE *) QUEUE_NEXT(q))</span><br><span class="line"></span><br><span class="line">如果队列 q 的头节点是自身，则认为队列 q 是空队列。注意，`QUEUE_EMPTY` 如果认为一个队列是空队列，但该队列不一定是环形队列。</span><br><span class="line"></span><br><span class="line"><span class="number">9</span>、合并队列</span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_ADD(h, n)                                                       \</span></span><br><span class="line">  <span class="keyword">do</span> &#123;                                                                        \</span><br><span class="line">    QUEUE_PREV_NEXT(h) = QUEUE_NEXT(n);                                       \</span><br><span class="line">    QUEUE_NEXT_PREV(n) = QUEUE_PREV(h);                                       \</span><br><span class="line">    QUEUE_PREV(h) = QUEUE_PREV(n);                                            \</span><br><span class="line">    QUEUE_PREV_NEXT(h) = (h);                                                 \</span><br><span class="line">  &#125;                                                                           \</span><br><span class="line">  <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>并非入列操作。根据上下文和语义， h 和 n 必须是队列，都可以为空队列。而如果 n 为节点，则会破坏其原来所在的队列。<br>作用：<br>将队列 n 的节点按顺序合并入队列 h 的尾部。<br>算法：<br>①  队列 h 的尾节点的下一个节点原本是队列 h 的根节点，将其设置为队列 n 头节点。(作用在队列 h 的尾节点上)<br>②  队列 n 的头节点的上一个节点原本是队列 n 的根节点，将其设置为队列 h 尾节点。(作用在队列 n 的头节点上)<br>③  队列 h 的新的尾节点设置为队列 n 的尾节点。(作用在队列 h 的根节点上)<br>④  队列 h 的尾节点的现在是队列 n 的尾节点，将其设置为队列 h 的根节点。(作用队列  h 新的尾节点上，或者说作用在队列 n 的尾节点上)<br>分析：<br>无<br>图示：<br><img src="/postimages/libuv-analysis-06/10.png"></p>
+<center>图10: 合并队列</center>
+
+<p>其他：<br>无</p>
+<h3 id="10、分拆-分解-队列"><a href="#10、分拆-分解-队列" class="headerlink" title="10、分拆(分解)队列"></a>10、分拆(分解)队列</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_SPLIT(h, q, n)                                                  \</span></span><br><span class="line">  <span class="keyword">do</span> &#123;                                                                        \</span><br><span class="line">    QUEUE_PREV(n) = QUEUE_PREV(h);                                            \</span><br><span class="line">    QUEUE_PREV_NEXT(n) = (n);                                                 \</span><br><span class="line">    QUEUE_NEXT(n) = (q);                                                      \</span><br><span class="line">    QUEUE_PREV(h) = QUEUE_PREV(q);                                            \</span><br><span class="line">    QUEUE_PREV_NEXT(h) = (h);                                                 \</span><br><span class="line">    QUEUE_PREV(q) = (n);                                                      \</span><br><span class="line">  &#125;                                                                           \</span><br><span class="line">  <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>h 是非空队列，q 必须是指向队列 h 其中一个非根节点的指针，n 是空队列。<br>如果 h 是空队列或 q 是指向队列 h 根节点的指针，则会破坏队列 h；如果 q 是其他队列的节点指针，则队列 h 以及其他队列都会遭到破坏；如果 n 是非空队列，则会破坏队列 n 。<br>作用：<br>将指针 q 指向的节点到队列 h 尾点之间的节点按顺序插入(移入)队列 n 的头部。包括指针 q 指向的节点和队列 h 的尾节点。<br>算法：<br>① 队列 n 的尾节点设置为队列 h 的尾节点。(作用在队列 n 的根节点上)<br>② 队列 n 的新的尾节点的上一个节点原本是队列 h 的根节点，将其设置为队列 n 的根节点。(作用在队列 n 的新的尾节点上，或者说作用在队列 h 的尾节点上)<br>③ 队列 n 的头设置为指针 q 指向的节点。(作用在队列 n 的根节点上)<br>④ 队列 h 的尾节点设置为指针 q 指向的节点的上一个节点。(作用在队列 h 的根节点上)<br>⑤ 队列 h 的尾节点的上一节点设置为队列 h 的根节点，也就是设置为指针 q 指向的节点的上一个节点。(作用在队列 h 的新的尾节点上，或者说作用在指针 q 指向的节点上)这时队列 h 恢复成合法的环形队列。<br>⑥ 指针 q 指向的节点的上一个节点设置为队列 q 的根节点。(作用在指针 q 指向的节点上，或者说作用在队列 n 的首节点上)<br>分析：<br>无<br>图示：<br><img src="/postimages/libuv-analysis-06/11.png"></p>
+<center>图11: 分拆(分解)队列</center>
+其他:
+无
+
+<h3 id="11、移动节点"><a href="#11、移动节点" class="headerlink" title="11、移动节点"></a>11、移动节点</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_MOVE(h, n)                                                      \</span></span><br><span class="line">  <span class="keyword">do</span> &#123;                                                                        \</span><br><span class="line">    <span class="keyword">if</span> (QUEUE_EMPTY(h))                                                       \</span><br><span class="line">      QUEUE_INIT(n);                                                          \</span><br><span class="line">    <span class="keyword">else</span> &#123;                                                                    \</span><br><span class="line">      QUEUE* q = QUEUE_HEAD(h);                                               \</span><br><span class="line">      QUEUE_SPLIT(h, q, n);                                                   \</span><br><span class="line">    &#125;                                                                         \</span><br><span class="line">  &#125;                                                                           \</span><br><span class="line">  <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+
+<p>备注：<br>h 是可空队列，n 是空队列。如果 h 是空队列，则 n 会设置为空队列；如果 n 是非空队列，则会破坏队列 n 。<br>作用：<br>移动节点。将队列 h 从头节点到尾节点之间的节点按顺序插入(移入)队列 n 的头部。包括队列 h 的头节点和尾节点。<br>算法：<br>核心算法见 <code>QUEUE_SPLIT</code> 。<br>分析：<br>无<br>图示：<br>无<br>其他:<br>无</p>
+<h3 id="12、获取队列所在结构的指针"><a href="#12、获取队列所在结构的指针" class="headerlink" title="12、获取队列所在结构的指针"></a>12、获取队列所在结构的指针</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> QUEUE_DATA(ptr, type, field)                                          \</span></span><br><span class="line">  ((type *) ((<span class="keyword">char</span> *) (ptr) - offsetof(type, field)))</span><br></pre></td></tr></table></figure>
+
+<p><code>QUEUE_DATA</code> 是和队列操作无关的一个宏，但却是非常有用处的。 offsetof 宏用于求结构体中一个成员在该结构体中的偏移量。成员所在的内置地址往回移该偏移量，就是结构的内存地址。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p>macOS: queue(3) ( <code>#import &lt;Kernel/sys/queue.h&gt;</code> )<br>FreeBSD: queue(3) ( <code>#include &lt;sys/queue.h&gt;</code> )<br><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Queue_(abstract_data_type)">https://en.wikipedia.org/wiki/Queue_(abstract_data_type)</a><br><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Value_%28computer_science%29#Assignment:_l-values_and_r-values">https://en.wikipedia.org/wiki/Value_%28computer_science%29#Assignment:_l-values_and_r-values</a><br><a target="_blank" rel="noopener" href="http://www.jianshu.com/p/6373de1e117d">http://www.jianshu.com/p/6373de1e117d</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Libuv/" rel="tag"># Libuv</a>
+              <a href="/tags/Libuv-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/" rel="tag"># Libuv 源码分析</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017/03/14/libuv-analysis-05/" rel="prev" title="Libuv 源码分析(5):数据结构—结构( struct )">
+      <i class="fa fa-chevron-left"></i> Libuv 源码分析(5):数据结构—结构( struct )
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2017/03/14/libuv-analysis-07/" rel="next" title="Libuv 源码分析(7):数据结构—复合类型(红黑树、最小二叉堆)">
+      Libuv 源码分析(7):数据结构—复合类型(红黑树、最小二叉堆) <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Libuv-%E9%98%9F%E5%88%97"><span class="nav-text">二、Libuv 队列</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81Libuv-%E9%98%9F%E5%88%97%E5%88%86%E6%9E%90%E5%87%86%E5%A4%87"><span class="nav-text">三、Libuv 队列分析准备</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81-x-%E5%8F%98%E9%87%8F"><span class="nav-text">1、 x 变量</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E6%95%B0%E7%BB%84%E6%8C%87%E9%92%88%E3%80%81%E8%8A%82%E7%82%B9%E6%8C%87%E9%92%88%E5%92%8C%E9%98%9F%E5%88%97%E6%8C%87%E9%92%88"><span class="nav-text">2、数组指针、节点指针和队列指针</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81Libuv-%E9%98%9F%E5%88%97%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90"><span class="nav-text">四、Libuv 队列实现分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E8%BE%85%E5%8A%A9"><span class="nav-text">1、辅助</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-QUEUE-%E7%B1%BB%E5%9E%8B"><span class="nav-text">1.1 QUEUE 类型</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-QUEUE-NEXT-q"><span class="nav-text">1.2 QUEUE_NEXT(q)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-QUEUE-PREV-q"><span class="nav-text">1.2 QUEUE_PREV(q)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-3-QUEUE-PREV-NEXT-q"><span class="nav-text">1.3 QUEUE_PREV_NEXT(q)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-4-QUEUE-NEXT-PREV-q"><span class="nav-text">1.4 QUEUE_NEXT_PREV(q)</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">2、初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81%E5%9C%A8%E9%98%9F%E5%88%97%E5%B0%BE%E6%8F%92%E5%85%A5%E8%8A%82%E7%82%B9"><span class="nav-text">3、在队列尾插入节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4%E3%80%81%E5%9C%A8%E9%98%9F%E5%88%97%E5%A4%B4%E6%8F%92%E5%85%A5%E8%8A%82%E7%82%B9"><span class="nav-text">4、在队列头插入节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5%E3%80%81%E8%8E%B7%E5%8F%96%E5%A4%B4%E8%8A%82%E7%82%B9"><span class="nav-text">5、获取头节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6%E3%80%81%E5%88%A0%E9%99%A4%E8%8A%82%E7%82%B9"><span class="nav-text">6、删除节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7%E3%80%81%E9%81%8D%E5%8E%86%E5%85%83%E7%B4%A0"><span class="nav-text">7、遍历元素</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8%E3%80%81%E5%88%A4%E6%96%AD%E9%98%9F%E5%88%97%E6%98%AF%E5%90%A6%E4%B8%BA%E7%A9%BA"><span class="nav-text">8、判断队列是否为空</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10%E3%80%81%E5%88%86%E6%8B%86-%E5%88%86%E8%A7%A3-%E9%98%9F%E5%88%97"><span class="nav-text">10、分拆(分解)队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11%E3%80%81%E7%A7%BB%E5%8A%A8%E8%8A%82%E7%82%B9"><span class="nav-text">11、移动节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#12%E3%80%81%E8%8E%B7%E5%8F%96%E9%98%9F%E5%88%97%E6%89%80%E5%9C%A8%E7%BB%93%E6%9E%84%E7%9A%84%E6%8C%87%E9%92%88"><span class="nav-text">12、获取队列所在结构的指针</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

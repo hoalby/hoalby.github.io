@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述FFmpeg 提供了一种以管道的方式对音视频进行滤镜操作的框架。其也内置了非常多的滤镜，如果这些滤镜还不能满足需求的话也可以自行开发。 本文主要梳理 FFmpeg 滤镜相关的一些基本概念和 API，为之后对具体内置滤镜的分析做准备。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="FFmpeg filters 分析：简述">
+<meta property="og:url" content="http://blog.tubumu.com/2020/11/01/ffmpeg-filters-description/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述FFmpeg 提供了一种以管道的方式对音视频进行滤镜操作的框架。其也内置了非常多的滤镜，如果这些滤镜还不能满足需求的话也可以自行开发。 本文主要梳理 FFmpeg 滤镜相关的一些基本概念和 API，为之后对具体内置滤镜的分析做准备。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/ffmpeg-filters-description/001.png">
+<meta property="article:published_time" content="2020-10-31T17:59:09.000Z">
+<meta property="article:modified_time" content="2020-11-17T07:19:20.417Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="FFmpeg">
+<meta property="article:tag" content="Audio">
+<meta property="article:tag" content="Filters">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://blog.tubumu.com/postimages/ffmpeg-filters-description/001.png">
+
+<link rel="canonical" href="http://blog.tubumu.com/2020/11/01/ffmpeg-filters-description/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>FFmpeg filters 分析：简述 | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2020/11/01/ffmpeg-filters-description/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          FFmpeg filters 分析：简述
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-11-01 01:59:09" itemprop="dateCreated datePublished" datetime="2020-11-01T01:59:09+08:00">2020-11-01</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-17 15:19:20" itemprop="dateModified" datetime="2020-11-17T15:19:20+08:00">2020-11-17</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/FFmpeg/" itemprop="url" rel="index"><span itemprop="name">FFmpeg</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>FFmpeg 提供了一种以管道的方式对音视频进行滤镜操作的框架。其也内置了非常多的滤镜，如果这些滤镜还不能满足需求的话也可以自行开发。</p>
+<p>本文主要梳理 FFmpeg 滤镜相关的一些基本概念和 API，为之后对具体内置滤镜的分析做准备。</p>
+<a id="more"></a>
+
+<h2 id="二、滤镜图和滤镜简述"><a href="#二、滤镜图和滤镜简述" class="headerlink" title="二、滤镜图和滤镜简述"></a>二、滤镜图和滤镜简述</h2><h3 id="1、什么是滤镜图和滤镜"><a href="#1、什么是滤镜图和滤镜" class="headerlink" title="1、什么是滤镜图和滤镜"></a>1、什么是滤镜图和滤镜</h3><p>滤镜图(Filter graph)是一种包含了多个已连接的滤镜的有向图。源码中，<code>AVFilterGraph</code> 类定义了滤镜图。避免眼花，下文使用 <strong><code>Filter graph</code></strong> 来表示滤镜图。<br>从表面上看滤镜是 Filter graph 节点。源码中，使用 <code>AVFilter</code> 类定义滤镜，运行时使用 <code>AVFilterContext</code> 类的实例表示位于 Filter graph 中的滤镜实例。<br>通常，滤镜有 0 或多个输入并且有 0 或多个输出——输入输出至少得有 1 个。一个滤镜的输出可以连接到另一个滤镜的输入，多个滤镜连接起来从而构成滤镜链。这里说的输入输出特指视频帧/音频采样在 Filter graph 中的处理流程，不是指整个 FFmpeg 的处理流程。源码中，使用 <code>AVFilterPad</code> 类定义滤镜有哪些输入和输出，运行时使用 <code>AVFilterInOut</code> 类的实例表示滤镜在 Filter graph 中的输入和输出实例。在 Filter graph 中使用 <code>AVFilterLink</code> 将滤镜连接起来。</p>
+<p>截止 FFmpeg 4.3.1 版本，其包含了 460 个滤镜。可在 <code>allfilters.c</code> 这个源文件中搜索 “extern AVFilter” 看看搜索出来的数量。也可以用命令 <code>ffmpeg -filters</code> 查看安装了的 滤镜。</p>
+<p>定义滤镜的源文件在 <code>libavfilter</code> 目录中。一个源文件定义了一或多个滤镜。比如 <code>buffersrc.c</code> 就包含了 <code>buffer</code> 和 <code>abuffer</code> 这两个滤镜, 分别是视频和音频的一种 Source (Source 是特殊的滤镜见下文)。</p>
+<blockquote>
+<p>备注：可以用命令 <code>ffmpeg -h filter=&lt;名称&gt;</code> 看具体滤镜的使用帮助。</p>
+</blockquote>
+<h3 id="2、滤镜的分类"><a href="#2、滤镜的分类" class="headerlink" title="2、滤镜的分类"></a>2、滤镜的分类</h3><p>可以使用两种方式对滤镜进行大致的分类。</p>
+<p>从输入输出(<code>Pad</code>)数量的角度可划分为 <code>Sources</code>、<code>Sinks</code> 和 <code>Filters</code>。Source 没有输入有 1 个输出，Sink 有 1 个输入没有输出，Filter 有 1 个或多个输入并有 1 个或多个输出。实际上，Source 和 Skin 本质上是特殊的滤镜。有时候为了区分，本文把 Source 和 Sink 之外的滤镜称为 <code>普通滤镜</code> 。</p>
+<p>从滤镜能够处理的媒体类型的角度可划分为三类：<code>Audio</code> 、 <code>Video</code> 和 <code>Multimedia</code>。Audio 分类的滤镜用于处理音频，Video 分类的滤镜包含用于处理视频，而 Multmedia 分类包含用于处理视频或音频的输入以及音频通用的滤镜。特别地，单独提出了 <code>OpenCL Video</code> 和 <code>VAAPI Video</code> 这两个仅用于处理视频的滤镜小类。<br>另外，<code>Multimedia</code> 只有 Sources 和普通滤镜，没有 Sinks；<code>OpenCL Video</code> 只有普通滤镜; <code>VAAPI Video</code> 只有一个用于视频编解码的普通滤镜。</p>
+<blockquote>
+<p>备注：实际上，普通滤镜也可以输入和输出都没有。比如 <code>af_volumedetect</code> 这个滤镜可以获取音频的音量(均方根值)、最大最小音量和音量直方图并以日志形式打印出来，不需要处理数据传递给下一个节点(Pad)。另外，如果输入为 NULL(AVFilte 的 outputs 字段为 NULL) 且有 <code>AVFILTER_FLAG_DYNAMIC_INPUTS</code> 标志则表示有动态地多个输入, 比如 <code>amerge</code> 和 <code>mix</code>等滤镜；如果输出为 NULL(AVFilte 的 inputs 字段为 NULL) 且有 <code>AVFILTER_FLAG_DYNAMIC_OUTPUTS</code> 标志则表示有动态地多个输出，比如 <code>split</code> 和 <code>aplit</code>等滤镜；甚至输入和输出都为 NULL 则表示输入和输出都是动态的，且有 AVFILTER_FLAG_DYNAMIC_INPUTS 和 AVFILTER_FLAG_DYNAMIC_OUTPUTS 两个标志，比如 <code>streamselect</code>、<code>astreamselect</code> 和 <code>concat</code> 这三个滤镜——所以严格来说 <code>Sources</code>、<code>Sinks</code> 和 <code>Filters</code> 不能简单按输入输出数量来区分，这样做只是考虑一般情况。</p>
+</blockquote>
+<p><img src="/postimages/ffmpeg-filters-description/001.png"><br>图1：Filter 的分类</p>
+<h2 id="三、滤镜相关类"><a href="#三、滤镜相关类" class="headerlink" title="三、滤镜相关类"></a>三、滤镜相关类</h2><p>FFmpeg 虽然是用 C 语言实现了，其也用到了一些 OOP 思想。在这里直接将这些 C 结构称为类。和滤镜相关的主要类如下。</p>
+<table>
+<thead>
+<tr>
+<th>类</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>AVFilterGraph</td>
+<td>Filter graph。</td>
+</tr>
+<tr>
+<td>AVFilter</td>
+<td>滤镜的定义。它一种定义类。它的实例包含用于处理命令(process_command，见下文)等操作。</td>
+</tr>
+<tr>
+<td>AVFilterPad</td>
+<td>滤镜的输入或输出定义。它一种定义类。它的实例的 filter_frame 指针指向实际的滤镜逻辑 。</td>
+</tr>
+<tr>
+<td>AVFilterContext</td>
+<td>滤镜的实例。AVFitler 实例是孤立的对滤镜的描述实例，而 AVFilterContext 实例是滤镜在 Filter graph 中的实例。</td>
+</tr>
+<tr>
+<td>AVFilterLink</td>
+<td>AVFilterLink 类通过将两个 AVFilterContext 实例的 Pad 放在一起从而实现滤镜的连接。</td>
+</tr>
+<tr>
+<td>AVFilterInOut</td>
+<td>AVFilterInOut 类是用于对滤镜参数字符串进行语句解析(Parse)时的辅助类。在此过程中会将<code>[]</code> 命名的的名称构造成 AVFilterInOut。它是一个链表结构。</td>
+</tr>
+</tbody></table>
+<h2 id="四、滤镜的定义"><a href="#四、滤镜的定义" class="headerlink" title="四、滤镜的定义"></a>四、滤镜的定义</h2><h3 id="1、AVFilter-类"><a href="#1、AVFilter-类" class="headerlink" title="1、AVFilter 类"></a>1、AVFilter 类</h3><p>AVFilter 可以看做是抽象类或接口。<br>定义了 1 个 <code>const AVClass *priv_class;</code> 字段描述了实际的类型。priv_class 指向的类型并非直接“继承”自 AVFilter，它更像包含了”子类”的字段的元数据——而真正的子类是一个虚拟的存在。比如滤镜 <code>ff_af_volume</code> 是一个 AVFrame 型变量，可以想象其是一个虚拟的名为 <code>AVFilterVolume</code> 的子类型的变量。而 <code>AVFilterVolume</code> 的字段定义在 <code>VolumeContext</code> 中。<br>定义了 1 个 <code>int priv_size;</code> 字段表示子类的结构大小，用于初始化时分配内存。比如滤镜 <code>ff_af_volume</code> 是 <code>VolumeContext</code> 结构的结果大小。<br>定义了 3 个函数指针字段 <code>init</code> 、<code>init_opaque</code> 和 <code>init_dict</code> 类似于面向对象语言中的构造函数，其中 init 看做是默认构造函数， init_opaue 和 init_dict 是构造函数重载。<br>定义了 1 个函数指针字段 <code>uninit</code> 类似于面向对象语言中的析构函数。<br>特别地，函数指针 <code>preinit</code> 指向的函数在给 AVFilterContext 分配内存后调用，为处理帧同步(framesync)做准备。</p>
+<p>以下是 AVFitler 的不完整定义：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/avfilter.h</span></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Filter definition. This defines the pads a filter contains, and all the</span></span><br><span class="line"><span class="comment"> * callback functions used to interact with the filter.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">AVFilter</span> &#123;</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * A class for the private data, used to declare filter private AVOptions.</span></span><br><span class="line"><span class="comment">     * This field is NULL for filters that do not declare any options.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * If this field is non-NULL, the first member of the filter private data</span></span><br><span class="line"><span class="comment">     * must be a pointer to AVClass, which will be set by libavfilter generic</span></span><br><span class="line"><span class="comment">     * code to this class.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">const</span> AVClass *priv_class;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*****************************************************************</span></span><br><span class="line"><span class="comment">     * All fields below this line are not part of the public API. They</span></span><br><span class="line"><span class="comment">     * may not be used outside of libavfilter and can be changed and</span></span><br><span class="line"><span class="comment">     * removed at will.</span></span><br><span class="line"><span class="comment">     * New public fields should be added right above.</span></span><br><span class="line"><span class="comment">     *****************************************************************</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Filter pre-initialization function</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * This callback will be called immediately after the filter context is</span></span><br><span class="line"><span class="comment">     * allocated, to allow allocating and initing sub-objects.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * If this callback is not NULL, the uninit callback will be called on</span></span><br><span class="line"><span class="comment">     * allocation failure.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * @return 0 on success,</span></span><br><span class="line"><span class="comment">     *         AVERROR code on failure (but the code will be</span></span><br><span class="line"><span class="comment">     *           dropped and treated as ENOMEM by the calling code)</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*preinit)(AVFilterContext *ctx);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Filter initialization function.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * This callback will be called only once during the filter lifetime, after</span></span><br><span class="line"><span class="comment">     * all the options have been set, but before links between filters are</span></span><br><span class="line"><span class="comment">     * established and format negotiation is done.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Basic filter initialization should be done here. Filters with dynamic</span></span><br><span class="line"><span class="comment">     * inputs and/or outputs should create those inputs/outputs here based on</span></span><br><span class="line"><span class="comment">     * provided options. No more changes to this filter&#x27;s inputs/outputs can be</span></span><br><span class="line"><span class="comment">     * done after this callback.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * This callback must not assume that the filter links exist or frame</span></span><br><span class="line"><span class="comment">     * parameters are known.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * @ref AVFilter.uninit &quot;uninit&quot; is guaranteed to be called even if</span></span><br><span class="line"><span class="comment">     * initialization fails, so this callback does not have to clean up on</span></span><br><span class="line"><span class="comment">     * failure.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * @return 0 on success, a negative AVERROR on failure</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*init)(AVFilterContext *ctx);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Should be set instead of @ref AVFilter.init &quot;init&quot; by the filters that</span></span><br><span class="line"><span class="comment">     * want to pass a dictionary of AVOptions to nested contexts that are</span></span><br><span class="line"><span class="comment">     * allocated during init.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * On return, the options dict should be freed and replaced with one that</span></span><br><span class="line"><span class="comment">     * contains all the options which could not be processed by this filter (or</span></span><br><span class="line"><span class="comment">     * with NULL if all the options were processed).</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Otherwise the semantics is the same as for @ref AVFilter.init &quot;init&quot;.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*init_dict)(AVFilterContext *ctx, AVDictionary **options);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Filter uninitialization function.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Called only once right before the filter is freed. Should deallocate any</span></span><br><span class="line"><span class="comment">     * memory held by the filter, release any buffer references, etc. It does</span></span><br><span class="line"><span class="comment">     * not need to deallocate the AVFilterContext.priv memory itself.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * This callback may be called even if @ref AVFilter.init &quot;init&quot; was not</span></span><br><span class="line"><span class="comment">     * called or failed, so it must be prepared to handle such a situation.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">void</span> (*uninit)(AVFilterContext *ctx);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">int</span> priv_size;      <span class="comment">///&lt; size of private data to allocate for the filter</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     *滤镜initialization function, alternative to the init()</span></span><br><span class="line"><span class="comment">     * callback. Args contains the user-supplied parameters, opaque is</span></span><br><span class="line"><span class="comment">     * used for providing binary data.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*init_opaque)(AVFilterContext *ctx, <span class="keyword">void</span> *opaque);</span><br><span class="line">&#125; AVFilter;</span><br></pre></td></tr></table></figure>
+
+<p>上述函数指针都是可 NULL 的，比如 <code>abuffer</code> 滤镜就只实现了 <code>init</code> 和 <code>uninit</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/buffersrc.c</span></span><br><span class="line">AVFilter ff_asrc_abuffer = &#123;</span><br><span class="line">    .name          = <span class="string">&quot;abuffer&quot;</span>,</span><br><span class="line">    .description   = NULL_IF_CONFIG_SMALL(<span class="string">&quot;Buffer audio frames, and make them accessible to the filterchain.&quot;</span>),</span><br><span class="line">    .priv_size     = <span class="keyword">sizeof</span>(BufferSourceContext),</span><br><span class="line">    .query_formats = query_formats,</span><br><span class="line"></span><br><span class="line">    .init      = init_audio,</span><br><span class="line">    .uninit    = uninit,</span><br><span class="line"></span><br><span class="line">    .inputs    = <span class="literal">NULL</span>,</span><br><span class="line">    .outputs   = avfilter_asrc_abuffer_outputs,</span><br><span class="line">    .priv_class = &amp;abuffer_class,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>再比如 <code>abuffersink</code> 滤镜实现了 <code>init_opaque</code> 、 <code>query_formats</code> 和 <code>activate</code> 而没有实现 <code>init</code> 和 <code>uninit</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/buffersink.c</span></span><br><span class="line">AVFilter ff_asink_abuffer = &#123;</span><br><span class="line">    .name        = <span class="string">&quot;abuffersink&quot;</span>,</span><br><span class="line">    .description = NULL_IF_CONFIG_SMALL(<span class="string">&quot;Buffer audio frames, and make them available to the end of the filter graph.&quot;</span>),</span><br><span class="line">    .priv_class  = &amp;abuffersink_class,</span><br><span class="line">    .priv_size   = <span class="keyword">sizeof</span>(BufferSinkContext),</span><br><span class="line">    .init_opaque = asink_init,</span><br><span class="line"></span><br><span class="line">    .query_formats = asink_query_formats,</span><br><span class="line">    .activate    = activate,</span><br><span class="line">    .inputs      = avfilter_asink_abuffer_inputs,</span><br><span class="line">    .outputs     = <span class="literal">NULL</span>,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>甚至 <code>acopy</code> 滤镜没有实现上述的任何函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/af_acopy.c</span></span><br><span class="line">AVFilter ff_af_acopy = &#123;</span><br><span class="line">    .name          = <span class="string">&quot;acopy&quot;</span>,</span><br><span class="line">    .description   = NULL_IF_CONFIG_SMALL(<span class="string">&quot;Copy the input audio unchanged to the output.&quot;</span>),</span><br><span class="line">    .inputs        = acopy_inputs,</span><br><span class="line">    .outputs       = acopy_outputs,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>上述的 <code>ff_asrc_abuffer</code> 、 <code>ff_asink_abuffer</code> 可以看做是实现了 AVFrame 接口的虚拟子类的实例，而 <code>ff_af_acopy</code> 直接是 AVFilter 的实例。</p>
+<p>然后看看 AVFilter 的其他字段：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/avfilter.h</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">AVFilter</span> &#123;</span></span><br><span class="line">    <span class="comment">// 滤镜名称</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     *滤镜name. Must be non-NULL and unique among filters.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">char</span> *name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 滤镜描述</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * A description of the filter. May be NULL.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * You should use the NULL_IF_CONFIG_SMALL() macro to define it.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">char</span> *description;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 输入列表</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * List of inputs, terminated by a zeroed element.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * NULL if there are no (static) inputs. Instances of filters with</span></span><br><span class="line"><span class="comment">     * AVFILTER_FLAG_DYNAMIC_INPUTS set may have more inputs than present in</span></span><br><span class="line"><span class="comment">     * this list.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">const</span> AVFilterPad *inputs;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 输出列表</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * List of outputs, terminated by a zeroed element.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * NULL if there are no (static) outputs. Instances of filters with</span></span><br><span class="line"><span class="comment">     * AVFILTER_FLAG_DYNAMIC_OUTPUTS set may have more outputs than present in</span></span><br><span class="line"><span class="comment">     * this list.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">const</span> AVFilterPad *outputs;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// AVFILTER_FLAG_* 枚举类型。</span></span><br><span class="line">    <span class="comment">// AVFILTER_FLAG_DYNAMIC_INPUTS: 用于标示输入的数量是否是动态的，即不是由 inputs 决定的。</span></span><br><span class="line">    <span class="comment">// AVFILTER_FLAG_DYNAMIC_OUTPUTS: 用于标示输出的数量是否是动态的，即不是由 outputs 决定的。</span></span><br><span class="line">    <span class="comment">// AVFILTER_FLAG_SLICE_THREADS: 是否支持将 frame 分帧进行多线程并行处理。</span></span><br><span class="line">    <span class="comment">// AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC: 有些滤镜支持 enable 表达式，用时间线控制滤镜的启用与否。如果判定 enable 的结果为 false，则不会调用定义的 filter_frame 函数就将帧传递给下一个滤镜。</span></span><br><span class="line">    <span class="comment">// AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL: 类似于 AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC 。不用之处在于调用 filter_frame 本身的时候判断，依赖于 AVFilterContext-&gt;is_disabled 的值。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * A combination of AVFILTER_FLAG_*</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> flags;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// FFmpeg 内部使用。</span></span><br><span class="line">    <span class="keyword">int</span> flags_internal; <span class="comment">///&lt; Additional flags for avfilter internal use only.</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// Filter graph 是使用滤镜的输入输出 Pad 构造的，AVFitler 的 `AVFitler *next` 字段与之无关。其作用只是为了注册各个 Filter，详见 `allfilters.c` 的 `av_filter_init_next` 函数。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Used by the filter registration system. Must not be touched by any other</span></span><br><span class="line"><span class="comment">     * code.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">AVFilter</span> *<span class="title">next</span>;</span></span><br><span class="line">&#125; AVFilter;</span><br></pre></td></tr></table></figure>
+
+<p>再然后看看 AVFilte 的其他函数指针：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/avfilter.h</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">AVFilter</span> &#123;</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Query formats supported by the filter on its inputs and outputs.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * This callback is called after the filter is initialized (so the inputs</span></span><br><span class="line"><span class="comment">     * and outputs are fixed), shortly before the format negotiation. This</span></span><br><span class="line"><span class="comment">     * callback may be called more than once.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * This callback must set AVFilterLink.out_formats on every input link and</span></span><br><span class="line"><span class="comment">     * AVFilterLink.in_formats on every output link to a list of pixel/sample</span></span><br><span class="line"><span class="comment">     * formats that the filter supports on that link. For audio links, this</span></span><br><span class="line"><span class="comment">     * filter must also set @ref AVFilterLink.in_samplerates &quot;in_samplerates&quot; /</span></span><br><span class="line"><span class="comment">     * @ref AVFilterLink.out_samplerates &quot;out_samplerates&quot; and</span></span><br><span class="line"><span class="comment">     * @ref AVFilterLink.in_channel_layouts &quot;in_channel_layouts&quot; /</span></span><br><span class="line"><span class="comment">     * @ref AVFilterLink.out_channel_layouts &quot;out_channel_layouts&quot; analogously.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * This callback may be NULL for filters with one input, in which case</span></span><br><span class="line"><span class="comment">     * libavfilter assumes that it supports all input formats and preserves</span></span><br><span class="line"><span class="comment">     * them on output.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * @return zero on success, a negative value corresponding to an</span></span><br><span class="line"><span class="comment">     * AVERROR code otherwise</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*query_formats)(AVFilterContext *);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Make the filter instance process a command.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * @param cmd    the command to process, for handling simplicity all commands must be alphanumeric only</span></span><br><span class="line"><span class="comment">     * @param arg    the argument for the command</span></span><br><span class="line"><span class="comment">     * @param res    a buffer with size res_size where the filter(s) can return a response. This must not change when the command is not supported.</span></span><br><span class="line"><span class="comment">     * @param flags  if AVFILTER_CMD_FLAG_FAST is set and the command would be</span></span><br><span class="line"><span class="comment">     *               time consuming then a filter should treat it like an unsupported command</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * @returns &gt;=0 on success otherwise an error code.</span></span><br><span class="line"><span class="comment">     *          AVERROR(ENOSYS) on unsupported commands</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*process_command)(AVFilterContext *, <span class="keyword">const</span> <span class="keyword">char</span> *cmd, <span class="keyword">const</span> <span class="keyword">char</span> *arg, <span class="keyword">char</span> *res, <span class="keyword">int</span> res_len, <span class="keyword">int</span> flags);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Filter activation function.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Called when any processing is needed from the filter, instead of any</span></span><br><span class="line"><span class="comment">     * filter_frame and request_frame on pads.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * The function must examine inlinks and outlinks and perform a single</span></span><br><span class="line"><span class="comment">     * step of processing. If there is nothing to do, the function must do</span></span><br><span class="line"><span class="comment">     * nothing and not return an error. If more steps are or may be</span></span><br><span class="line"><span class="comment">     * possible, it must use ff_filter_set_ready() to schedule another</span></span><br><span class="line"><span class="comment">     * activation.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*activate)(AVFilterContext *ctx);</span><br><span class="line">&#125; AVFilter;</span><br></pre></td></tr></table></figure>
+
+<p><code>activate</code> 在处理数据之前调用进行一些准备工作。如果没有定义该函数，会使用 <code>ff_filter_activate_default</code> 函数。<br><code>query_formats</code> 用于查询输入和输出 Pad 支持的媒体格式。<br><code>process_command</code> 用于处理命令。注意并不是处理数据，命令里可能包含设置某些参数之类的。实际处理数据的是 AVFilterPad 的 <code>filter_frame</code> 指针所指向的函数。而该函数一般在滤镜所在文件进行定义，然后让 AVFilterPad 的 filter_frame 指针指向它。</p>
+<h3 id="2、AVFilterPad-类"><a href="#2、AVFilterPad-类" class="headerlink" title="2、AVFilterPad 类"></a>2、AVFilterPad 类</h3><p>使用 AVFilterPad 描述滤镜的输入和输出，比如描述 <code>buffer</code> 滤镜的输出:</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/buffersrc.c</span></span><br><span class="line">tatic <span class="keyword">const</span> AVFilterPad avfilter_vsrc_buffer_outputs[] = &#123;</span><br><span class="line">    &#123;</span><br><span class="line">        .name          = <span class="string">&quot;default&quot;</span>,</span><br><span class="line">        .type          = AVMEDIA_TYPE_VIDEO,</span><br><span class="line">        .request_frame = request_frame,</span><br><span class="line">        .poll_frame    = poll_frame,</span><br><span class="line">        .config_props  = config_props,</span><br><span class="line">    &#125;,</span><br><span class="line">    &#123; <span class="literal">NULL</span> &#125;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">AVFilter ff_vsrc_buffer = &#123;</span><br><span class="line">    <span class="comment">// 其他字段</span></span><br><span class="line">    .outputs   = avfilter_vsrc_buffer_outputs,</span><br><span class="line">    <span class="comment">// 其他字段</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/internal.c</span></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A filter pad used for either input or output.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">AVFilterPad</span> &#123;</span></span><br><span class="line">    <span class="comment">// Pad 名称</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Pad name. The name is unique among inputs and among outputs, but an</span></span><br><span class="line"><span class="comment">     * input may have the same name as an output. This may be NULL if this</span></span><br><span class="line"><span class="comment">     * pad has no need to ever be referenced by name.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">char</span> *name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Pad 类型，视频或音频等。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * AVFilterPad type.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">AVMediaType</span> <span class="title">type</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/** 对于视频，在应用滤镜之前获取视频帧。</span></span><br><span class="line"><span class="comment">     * Callback function to get a video buffer. If NULL, the filter system will</span></span><br><span class="line"><span class="comment">     * use ff_default_get_video_buffer().</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Input video pads only.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    AVFrame *(*get_video_buffer)(AVFilterLink *link, <span class="keyword">int</span> w, <span class="keyword">int</span> h);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/** 对于音频，在应用滤镜之前获取音频帧。</span></span><br><span class="line"><span class="comment">    /**</span></span><br><span class="line"><span class="comment">     * Callback function to get an audio buffer. If NULL, the filter system will</span></span><br><span class="line"><span class="comment">     * use ff_default_get_audio_buffer().</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Input audio pads only.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    AVFrame *(*get_audio_buffer)(AVFilterLink *link, <span class="keyword">int</span> nb_samples);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 应用滤镜</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Filtering callback. This is where a filter receives a frame with</span></span><br><span class="line"><span class="comment">     * audio/video data and should do its processing.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Input pads only.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * @return &gt;= 0 on success, a negative AVERROR on error. This function</span></span><br><span class="line"><span class="comment">     * must ensure that frame is properly unreferenced on error if it</span></span><br><span class="line"><span class="comment">     * hasn&#x27;t been passed on to another filter.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*filter_frame)(AVFilterLink *link, AVFrame *frame);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 查询可用的数据帧的数量。</span></span><br><span class="line">    <span class="comment">// 目前只存在于 buffer 或 abuffer 这两个滤镜中。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Frame poll callback. This returns the number of immediately available</span></span><br><span class="line"><span class="comment">     * samples. It should return a positive value if the next request_frame()</span></span><br><span class="line"><span class="comment">     * is guaranteed to return one frame (with no delay).</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Defaults to just calling the source poll_frame() method.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Output pads only.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*poll_frame)(AVFilterLink *link);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 请求数据帧，以备滤镜处理。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Frame request callback. A call to this should result in some progress</span></span><br><span class="line"><span class="comment">     * towards producing output over the given link. This should return zero</span></span><br><span class="line"><span class="comment">     * on success, and another value on error.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * Output pads only.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*request_frame)(AVFilterLink *link);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置属性，比如视频的高宽。注意这不是格式属性，滤镜之间协商格式使用的是在调用该回调之前的 query_formats 回调。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Link configuration callback.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * For output pads, this should set the link properties such as</span></span><br><span class="line"><span class="comment">     * width/height. This should NOT set the format property - that is</span></span><br><span class="line"><span class="comment">     * negotiated between filters by the filter system using the</span></span><br><span class="line"><span class="comment">     * query_formats() callback before this function is called.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * For input pads, this should check the properties of the link, and update</span></span><br><span class="line"><span class="comment">     * the filter&#x27;s internal state as necessary.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * For both input and output filters, this should return zero on success,</span></span><br><span class="line"><span class="comment">     * and another value on error.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> (*config_props)(AVFilterLink *link);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 是否需要 FIFO 队列。如果为 true，则会在本滤镜之前插入一个 fifo 或 afifo 滤镜。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * The filter expects a fifo to be inserted on its input link,</span></span><br><span class="line"><span class="comment">     * typically because it has a delay.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * input pads only.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> needs_fifo;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 是否需要将 AVFrame 设置为可写。如果 AVFrame 本是可写，则会拷贝数据创建新的 AVFrame。</span></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * The filter expects writable frames from its input link,</span></span><br><span class="line"><span class="comment">     * duplicating data buffers if needed.</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * input pads only.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">int</span> needs_writable;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、Filter-graph-的创建和释放"><a href="#五、Filter-graph-的创建和释放" class="headerlink" title="五、Filter graph 的创建和释放"></a>五、Filter graph 的创建和释放</h2><h3 id="1、创建-Filter-graph"><a href="#1、创建-Filter-graph" class="headerlink" title="1、创建 Filter graph"></a>1、创建 Filter graph</h3><p>调用 <code>avfilter_graph_alloc</code> 函数创建 Filter graph，除了给 AVFilterGraph 结构也会给其内部使用的 <code>AVFilterGraphInternal</code> 型的 internal 字段分配内存。然后设置 AVOption 集的初始值。类似于面向对象语言的默认构造函数。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/avfiltergraph.c</span></span><br><span class="line"><span class="function">AVFilterGraph *<span class="title">avfilter_graph_alloc</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    AVFilterGraph *ret = av_mallocz(<span class="keyword">sizeof</span>(*ret));</span><br><span class="line">    <span class="keyword">if</span> (!ret)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    ret-&gt;internal = av_mallocz(<span class="keyword">sizeof</span>(*ret-&gt;internal));</span><br><span class="line">    <span class="keyword">if</span> (!ret-&gt;internal) &#123;</span><br><span class="line">        av_freep(&amp;ret);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    ret-&gt;av_class = &amp;filtergraph_class;</span><br><span class="line">    av_opt_set_defaults(ret);</span><br><span class="line">    ff_framequeue_global_init(&amp;ret-&gt;internal-&gt;frame_queues);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、释放-Filter-graph"><a href="#2、释放-Filter-graph" class="headerlink" title="2、释放 Filter graph"></a>2、释放 Filter graph</h3><p>在使用 Filter graph 完成后，调用 <code>avfilter_graph_free</code> 函数以释放其内存。</p>
+<h2 id="六、滤镜-AVFilterContext-的创建和释放"><a href="#六、滤镜-AVFilterContext-的创建和释放" class="headerlink" title="六、滤镜(AVFilterContext)的创建和释放"></a>六、滤镜(AVFilterContext)的创建和释放</h2><p>AVFilterContext 实例是滤镜在 Filter graph 中的实例。它包含一个 AVFilter 实例——当然不同的滤镜实现不同。比如对于 <code>overlay</code> 这个滤镜，AVFilterContext 的 AVFilter 指针指向的是 <code>ff_vf_overlay</code> 对象。</p>
+<h3 id="1、创建滤镜"><a href="#1、创建滤镜" class="headerlink" title="1、创建滤镜"></a>1、创建滤镜</h3><p>调用 <code>avfilter_graph_create_filter</code> 创建滤镜。</p>
+<h3 id="2、释放滤镜"><a href="#2、释放滤镜" class="headerlink" title="2、释放滤镜"></a>2、释放滤镜</h3><p>在释放 Filter graph 的时候会将滤镜释放，无需手工释放。</p>
+<h2 id="七、Filter-graph-语句解析-Parse"><a href="#七、Filter-graph-语句解析-Parse" class="headerlink" title="七、Filter graph 语句解析(Parse)"></a>七、Filter graph 语句解析(Parse)</h2><p>AVFilterInOut 是用于对滤镜参数字符串进行语句解析(Parse)时的辅助类。在此过程中会将<code>[]</code> 命名的的名称构造成 AVFilterInOut。它是一个链表结构。<br>在使用 FFmpeg 滤镜 API (比如官方的 filter_video 这个 Demo) 时，也会手工创建以将 Source 和 Sink 与其他滤镜连接起来。<br>AVFilterLink 通过将两个滤镜的 Pad 放在一起从而实现滤镜的连接。滤镜相连是通过 AVFilterLink 对象而不是 AVFilterContext 或 AVFilter 等对象。</p>
+<h3 id="1、AVFilterInOut-类"><a href="#1、AVFilterInOut-类" class="headerlink" title="1、AVFilterInOut 类"></a>1、AVFilterInOut 类</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/avfilter.h</span></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A linked-list of the inputs/outputs of the filter chain.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * This is mainly useful for avfilter_graph_parse() / avfilter_graph_parse2(),</span></span><br><span class="line"><span class="comment"> * where it is used to communicate open (unlinked) inputs and outputs from and</span></span><br><span class="line"><span class="comment"> * to the caller.</span></span><br><span class="line"><span class="comment"> * This struct specifies, per each not connected pad contained in the graph, the</span></span><br><span class="line"><span class="comment"> * filter context and the pad index required for establishing a link.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">AVFilterInOut</span> &#123;</span></span><br><span class="line">    <span class="comment">/** unique name for this input/output in the list */</span></span><br><span class="line">    <span class="keyword">char</span> *name;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/** filter context associated to this input/output */</span></span><br><span class="line">    AVFilterContext *filter_ctx;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/** index of the filt_ctx pad to use for linking */</span></span><br><span class="line">    <span class="keyword">int</span> pad_idx;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/** next input/input in the list, NULL if this is the last */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">AVFilterInOut</span> *<span class="title">next</span>;</span></span><br><span class="line">&#125; AVFilterInOut;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、AVFilterLink-类"><a href="#2、AVFilterLink-类" class="headerlink" title="2、AVFilterLink 类"></a>2、AVFilterLink 类</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: libavfilter/avfilter.h</span></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * A link between two filters. This contains pointers to the source and</span></span><br><span class="line"><span class="comment"> * destination filters between which this link exists, and the indexes of</span></span><br><span class="line"><span class="comment"> * the pads involved. In addition, this link also contains the parameters</span></span><br><span class="line"><span class="comment"> * which have been negotiated and agreed upon between the filter, such as</span></span><br><span class="line"><span class="comment"> * image dimensions, format, etc.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * Applications must not normally access the link structure directly.</span></span><br><span class="line"><span class="comment"> * Use the buffersrc and buffersink API instead.</span></span><br><span class="line"><span class="comment"> * In the future, access to the header may be reserved for filters</span></span><br><span class="line"><span class="comment"> * implementation.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">AVFilterLink</span> &#123;</span></span><br><span class="line">    AVFilterContext *src;       <span class="comment">///&lt; source filter</span></span><br><span class="line">    AVFilterPad *srcpad;        <span class="comment">///&lt; output pad on the source filter</span></span><br><span class="line"></span><br><span class="line">    AVFilterContext *dst;       <span class="comment">///&lt; dest filter</span></span><br><span class="line">    AVFilterPad *dstpad;        <span class="comment">///&lt; input pad on the dest filter</span></span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">enum</span> <span class="title">AVMediaType</span> <span class="title">type</span>;</span>      <span class="comment">///&lt; filter media type</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ...Others</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3、Filter-graph-语句解析"><a href="#3、Filter-graph-语句解析" class="headerlink" title="3、Filter graph 语句解析"></a>3、Filter graph 语句解析</h3><p>调用 <code>avfilter_graph_parse_ptr</code> 等方法对 Filter graph 的字符串参数进行语句解析。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a target="_blank" rel="noopener" href="http://ffmpeg.org/ffmpeg-filters.html">FFmpeg filters 官网文档</a><br><a target="_blank" rel="noopener" href="https://e.jd.com/30402412.html">FFmpeg 从入门到精通</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/vn9PLgZvnPs1522s82g/article/details/81977602">FFmpeg Filter深度应用</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/leisure_chn/p/10429145.html">FFmpeg原始帧处理-滤镜API用法详解</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/TaigaCon/p/10193627.html">[ffmpeg] 多输入滤波同步方式（framesync）</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/newchenxf/article/details/51364105">ffmpeg filter过滤器 基础实例及全面解析</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/FFmpeg/" rel="tag"># FFmpeg</a>
+              <a href="/tags/Audio/" rel="tag"># Audio</a>
+              <a href="/tags/Filters/" rel="tag"># Filters</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/10/23/spectrum-analyzer-01/" rel="prev" title="在 WPF 中绘制功率谱(Power Spectrum)">
+      <i class="fa fa-chevron-left"></i> 在 WPF 中绘制功率谱(Power Spectrum)
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/11/03/ffmpeg-filters-af-volume/" rel="next" title="FFmpeg filters 分析：af_volume">
+      FFmpeg filters 分析：af_volume <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E6%BB%A4%E9%95%9C%E5%9B%BE%E5%92%8C%E6%BB%A4%E9%95%9C%E7%AE%80%E8%BF%B0"><span class="nav-text">二、滤镜图和滤镜简述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E4%BB%80%E4%B9%88%E6%98%AF%E6%BB%A4%E9%95%9C%E5%9B%BE%E5%92%8C%E6%BB%A4%E9%95%9C"><span class="nav-text">1、什么是滤镜图和滤镜</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E6%BB%A4%E9%95%9C%E7%9A%84%E5%88%86%E7%B1%BB"><span class="nav-text">2、滤镜的分类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E6%BB%A4%E9%95%9C%E7%9B%B8%E5%85%B3%E7%B1%BB"><span class="nav-text">三、滤镜相关类</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E6%BB%A4%E9%95%9C%E7%9A%84%E5%AE%9A%E4%B9%89"><span class="nav-text">四、滤镜的定义</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81AVFilter-%E7%B1%BB"><span class="nav-text">1、AVFilter 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81AVFilterPad-%E7%B1%BB"><span class="nav-text">2、AVFilterPad 类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81Filter-graph-%E7%9A%84%E5%88%9B%E5%BB%BA%E5%92%8C%E9%87%8A%E6%94%BE"><span class="nav-text">五、Filter graph 的创建和释放</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E5%88%9B%E5%BB%BA-Filter-graph"><span class="nav-text">1、创建 Filter graph</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E9%87%8A%E6%94%BE-Filter-graph"><span class="nav-text">2、释放 Filter graph</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E6%BB%A4%E9%95%9C-AVFilterContext-%E7%9A%84%E5%88%9B%E5%BB%BA%E5%92%8C%E9%87%8A%E6%94%BE"><span class="nav-text">六、滤镜(AVFilterContext)的创建和释放</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E5%88%9B%E5%BB%BA%E6%BB%A4%E9%95%9C"><span class="nav-text">1、创建滤镜</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E9%87%8A%E6%94%BE%E6%BB%A4%E9%95%9C"><span class="nav-text">2、释放滤镜</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81Filter-graph-%E8%AF%AD%E5%8F%A5%E8%A7%A3%E6%9E%90-Parse"><span class="nav-text">七、Filter graph 语句解析(Parse)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81AVFilterInOut-%E7%B1%BB"><span class="nav-text">1、AVFilterInOut 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81AVFilterLink-%E7%B1%BB"><span class="nav-text">2、AVFilterLink 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81Filter-graph-%E8%AF%AD%E5%8F%A5%E8%A7%A3%E6%9E%90"><span class="nav-text">3、Filter graph 语句解析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

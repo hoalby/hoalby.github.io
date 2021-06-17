@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述通常我们会在 Startup 类通过 void ConfigureServices(IServiceCollection services) 配置应用的服务。常见的形如 AddXXX 的方法，实际上调用的都是 IServiceCollection 或直接说是 ServiceCollection 的 AddSingleton 、AddTransient 和 AddScoped等方法。调用Ap">
+<meta property="og:type" content="article">
+<meta property="og:title" content="OrchardCore 如何实现模块化( Modular )和 Multi-Tenancy">
+<meta property="og:url" content="http://blog.tubumu.com/2018/11/26/orchardcore-modular-and-multi-tenancy/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述通常我们会在 Startup 类通过 void ConfigureServices(IServiceCollection services) 配置应用的服务。常见的形如 AddXXX 的方法，实际上调用的都是 IServiceCollection 或直接说是 ServiceCollection 的 AddSingleton 、AddTransient 和 AddScoped等方法。调用Ap">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2018-11-26T07:47:00.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.805Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="ASP.NET Core">
+<meta property="article:tag" content="OrchardCore">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://blog.tubumu.com/2018/11/26/orchardcore-modular-and-multi-tenancy/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>OrchardCore 如何实现模块化( Modular )和 Multi-Tenancy | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2018/11/26/orchardcore-modular-and-multi-tenancy/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          OrchardCore 如何实现模块化( Modular )和 Multi-Tenancy
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2018-11-26 15:47:00" itemprop="dateCreated datePublished" datetime="2018-11-26T15:47:00+08:00">2018-11-26</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Code-Reading/" itemprop="url" rel="index"><span itemprop="name">Code Reading</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>通常我们会在 <code>Startup</code> 类通过 <code>void ConfigureServices(IServiceCollection services)</code> 配置应用的服务。常见的形如 <code>AddXXX</code> 的方法，实际上调用的都是 <code>IServiceCollection</code> 或直接说是 <code>ServiceCollection</code> 的 <code>AddSingleton</code> 、<code>AddTransient</code> 和 <code>AddScoped</code>等方法。调用<code>ApplicationBuilder</code> 的 <code>RequestDelegate Build()</code> 方法会调用 <code>IServiceCollection</code> 的扩展方法 <code>BuildServiceProvider</code> 会创建并返回一个 <code>ServiceProvider</code> 对象。<br>还会在 <code>Startup</code> 类通过 <code>void Configure(IApplicationBuilder app, IHostingEnvironment env)</code> 配置请求管道，在该方法内进行的主要操作是添加中间件。常见的形如 <code>UseMiddleware</code> 或 <code>UseXXX</code> 的方法，实际上调用的都是 <code>IApplicationBuilder</code> 或直接说是 <code>ApplicationBuilder</code> 的 <code>IApplicationBuilder Use(Func&lt;RequestDelegate, RequestDelegate&gt; middleware)</code> 方法，<code>Use</code> 方法并不是马上将中间件配置入请求管道，而是将“实例化中间件的方式”保存到 <code>ApplicationBuilder</code> 内部一个列表的操作。调用<code>ApplicationBuilder</code> 的 <code>RequestDelegate Build()</code> 方法会实例化中间件并把各个中间件串联起来。</p>
+<a id="more"></a>
+
+<p><code>OrchardCore</code> 通过将服务和中间件放在不同的程序集以支持模块化。各个模块提供类似于 <code>ConfigureServices</code> 和 <code>Configure</code> 的方法供运行时调用。</p>
+<p><code>OrchardCore</code> 还支持 <code>Multi-Tenancy</code>。<code>Tenant</code> 有如下特性：</p>
+<ol>
+<li>多个 <code>Tenant</code> 运行在同一个应用程序域中，每个 <code>Tenant</code> 几乎可以看做是独立的网站；</li>
+<li>根据  <code>Host</code> 、<code>Port</code> 和 <code>Path</code> 的各种组合匹配不同的 <code>Tenant</code>（<code>ModularTenantContainerMiddleware</code>）；</li>
+<li>延迟激活，第一次请求 <code>Tenant</code> 才会激活（<code>ModularTenantContainerMiddleware</code>）；</li>
+<li>每个 <code>Tenant</code> 有不同的 DI 容器（<code>ModularTenantContainerMiddleware</code>）；</li>
+<li>每个 <code>Tenant</code> 有不同的请求管道，可以共享中间件，还可以使用特定中间件（<code>ModularTenantRouterMiddleware</code>）。</li>
+</ol>
+<h2 id="二、模块定义"><a href="#二、模块定义" class="headerlink" title="二、模块定义"></a>二、模块定义</h2><p>模块是依赖于 <code>OrchardCore.Modules.Targets</code>  程序集的程序集，可以有各自的<code>配置</code>、<code>选项</code>、<code>服务</code>和<code>中间件</code>等，还可以有各自的<code>路由</code>、<code>视图</code>、<code>控制器</code>、 <code>Filter</code> 和 <code>ModelBinder</code> 等，看起来像是一个 <code>MVC</code> <code>Area</code>。<br>模块包含 0 或多个 <code>Feature</code> 。<code>Feature</code> 是功能的逻辑组合，可单独开启或禁用。<br><code>Feature</code> 之间可有依赖关系，并且支持跨模块的依赖。</p>
+<blockquote>
+<p>备注：<br><code>OrchardCore</code> 中，一个程序集只包含一个模块。<br>模块可以看做是特殊的 <code>Feature</code> 。<br>用于定义 <code>Theme</code> 的 <code>OrchardCore.Theme.Targets</code> 程序集也依赖于 <code>OrchardCore.Modules.Targets</code>  程序集。</p>
+</blockquote>
+<h3 id="1、Mainifest-cs-文件"><a href="#1、Mainifest-cs-文件" class="headerlink" title="1、Mainifest.cs 文件"></a>1、Mainifest.cs 文件</h3><p>模块有个以程序集特性的形式嵌入程序集中的 <code>Mainifest</code> ，用于描述模块的基本信息、拥有的 <code>Feature</code> 和依赖的其他 <code>Feature</code> 等。一般写在  <code>Mainifest.cs</code>  文件中，比如：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> OrchardCore.Modules.Manifest;</span><br><span class="line">[<span class="meta">assembly: Module(</span></span><br><span class="line"><span class="meta">  Name = <span class="meta-string">&quot;XML-RPC&quot;</span>,</span></span><br><span class="line"><span class="meta">  Author = <span class="meta-string">&quot;The Orchard Team&quot;</span>,</span></span><br><span class="line"><span class="meta">  Website = <span class="meta-string">&quot;http://orchardproject.net&quot;</span>,</span></span><br><span class="line"><span class="meta">  Version = <span class="meta-string">&quot;2.0.0&quot;</span></span></span><br><span class="line"><span class="meta">)</span>]</span><br><span class="line">[<span class="meta">assembly: Feature(</span></span><br><span class="line"><span class="meta">  Id = <span class="meta-string">&quot;OrchardCore.XmlRpc&quot;</span>,</span></span><br><span class="line"><span class="meta">  Name = <span class="meta-string">&quot;XML-RPC&quot;</span>,</span></span><br><span class="line"><span class="meta">  Description = <span class="meta-string">&quot;The XML-RPC module enables creation of contents from client applications such as Open Live Writer.&quot;</span>,</span></span><br><span class="line"><span class="meta">  Category = <span class="meta-string">&quot;Infrastructure&quot;</span></span></span><br><span class="line"><span class="meta">)</span>]</span><br><span class="line">[<span class="meta">assembly: Feature(</span></span><br><span class="line"><span class="meta">  Id = <span class="meta-string">&quot;OrchardCore.RemotePublishing&quot;</span>,</span></span><br><span class="line"><span class="meta">  Name = <span class="meta-string">&quot;Remote Publishing&quot;</span>,</span></span><br><span class="line"><span class="meta">  Description = <span class="meta-string">&quot;The remote publishing feature enables creation of contents from client applications such as Open Live Writer.&quot;</span>,</span></span><br><span class="line"><span class="meta">  Dependencies = new [</span>] &#123; <span class="string">&quot;OrchardCore.XmlRpc&quot;</span> &#125;,</span><br><span class="line">  Category = <span class="string">&quot;Infrastructure&quot;</span></span><br><span class="line">)]</span><br></pre></td></tr></table></figure>
+
+<p>在运行时可将 <code>Mainifest</code> 读取至 <code>MainifestInfo</code> 对象中。<br><code>ModuleAttribure</code> 用于描述模块基本信息，只能用于程序集并且只能使用一次，在运行时可读取至 <code>ModuleInfo</code> 对象中。<br>一个模块可以包含 0 或多个 <code>Feature</code> 。<code>FeatureAttribure</code> 用于描述模块提供的 <code>Feature</code>，只能用于程序集并且可以使用多次，在运行时可读取至 <code>FeatureInfo</code> 对象中。</p>
+<blockquote>
+<p>备注：<code>ModuleAttribute</code> 继承自 <code>FeatureAttribute</code> ，都位于 <code>OrchardCore.Abstractions</code> 程序集、<code>OrchardCore.Modules.Manifest</code> 命名空间中。</p>
+</blockquote>
+<p>从类或对象来看，1 个 <code>MainifestInfo</code> 对象包含 1 个 <code>ModuleInfo</code> 对象，1 个 <code>ModuleInfo</code> 对象包含 0 或多个 <code>FeatureInfo</code> 对象。</p>
+<h3 id="2、ManifestInfo-和-FeatureInfo-类"><a href="#2、ManifestInfo-和-FeatureInfo-类" class="headerlink" title="2、ManifestInfo 和 FeatureInfo 类"></a>2、ManifestInfo 和 FeatureInfo 类</h3><p><code>ExtensionManager</code> 类用于获取 <code>Mainifest</code> ，并将相关数据反序列化入 <code>ManifestInfo</code> 和 <code>FeatureInfo</code> 对象中。</p>
+<h3 id="3、ModuelNameAttribute-类"><a href="#3、ModuelNameAttribute-类" class="headerlink" title="3、ModuelNameAttribute 类"></a>3、ModuelNameAttribute 类</h3><p>如果一个项目引用了一些模块，<code>MSBuild</code> 在生成项目时会针对每个模块添加一个程序集级的  <code>ModuleNameAttrbute</code> ，用于保存引用的模块名称。<br><code>AssemblyAttributeModuleNamesProvider</code> 类的 <code>IEnumerable&lt;string&gt; GetModuleNames()</code> 方法能够收集到 <code>ModuleNameAttrbute</code> 。</p>
+<blockquote>
+<p>备注：<code>AssemblyAttributeModuleNamesProvider</code> 位于 <code>OrchardCore.Abstractions</code> 程序集、<code>OrchardCore.Modules</code> 命名空间中。</p>
+</blockquote>
+<h3 id="4、ModuleMarkerAttribute-类"><a href="#4、ModuleMarkerAttribute-类" class="headerlink" title="4、ModuleMarkerAttribute 类"></a>4、ModuleMarkerAttribute 类</h3><p><code>MSBuild</code> 在生成模块的项目时会自动添加程序集级的 <code>ModuleMarkerAttribute</code> 。<code>ModuleMarkerAttribute</code> 继承 <code>ModuleAttribute</code>），位于 <code>OrchardCore.Abstractions</code> 程序集、 <code>OrchardCore.Modules.Manifest</code> 命名空间中。</p>
+<h3 id="5、ModuleAssetAttribute类"><a href="#5、ModuleAssetAttribute类" class="headerlink" title="5、ModuleAssetAttribute类"></a>5、ModuleAssetAttribute类</h3><p><code>MSBuild</code> 在生成模块的项目时会自动添加程序集级的 <code>ModuleAssetAttribute</code>。<code>ModuleAssetAttribute</code> 继承 <code>ModuleAttribute</code>），位于 <code>OrchardCore.Abstractions</code> 程序集、 <code>OrchardCore.Modules.Manifest</code> 命名空间中。</p>
+<h3 id="6、Module-类"><a href="#6、Module-类" class="headerlink" title="6、Module 类"></a>6、Module 类</h3><p>在创建 <code>Module</code> 对象时，传入模块程序集的名称，构造函数会通过 <code>Assembly.Load</code> 加载模块程序集，并且收集模块的 <code>ModuleAttribute</code>、<code>ModuleAssetAttribute</code> 和 <code>ModuleMarkerAttribute</code> 放入自身属性中。</p>
+<blockquote>
+<p>注意：这里说的是 <code>Module</code> 类不是 <code>ModuleAttribute</code> 类。</p>
+</blockquote>
+<blockquote>
+<p>备注：<code>ModularApplicationContext</code> 位于 <code>OrchardCore.Abstractions</code> 程序集、<code>OrchardCore.Modules</code> 命名空间中。</p>
+</blockquote>
+<h3 id="7、IStartup-接口"><a href="#7、IStartup-接口" class="headerlink" title="7、IStartup 接口"></a>7、IStartup 接口</h3><p>每个模块可能需要注册一些服务至 DI 容器中，也可能需要注册一些中间件。<code>OrchardCore</code> 定义了一个 <code>OrchardCore.Modules.IStartup, OrchardCore.Modules.Abstractions</code>  接口，以及实现了该接口的 <code>OrchardCore.Module s.StartupBase, sOrchardCore.Modules.Abstractions</code>  抽象类。<code>OrchardCore</code> 模块通常有一个 <code>Startup.cs</code> 文件，实现了继承自 <code>SetupBase</code>  抽象类的名为 <code>Startup</code> 的具体类。</p>
+<blockquote>
+<p>注意：<code>OrchardCore</code> 的 <code>Startup</code> 类不是指通常 <code>ASP.NET Core</code> 中的那个类，<code>IStartup</code> 接口也不是通常 <code>ASP.NET Core</code> 中的那个接口，尽管它们的确很相似。</p>
+</blockquote>
+<p>通常，对于 <code>ASP.NET Core</code> 应用的 <code>Startup</code> 类我们不直接实现 <code>IStartup</code> 接口，而采用更灵活的基于方法名约定的方式。另外，通过 <code>IHostingStartup</code>（承载启动）实现，在启动时从外部程序集向应用添加增强功能。但是使用 <code>IHostingStartup</code> 无法控制各个模块注册服务和添加中间件的顺序，也不支持延迟加载。<br><code>OrchardCore.Modules.IStartup,OrchardCore.Modules.Abstractions</code>  相较于 <code>Microsoft.AspNetCore.Hosting.IStartup,Microsoft.AspNetCore.Hosting.Abstractions</code> 多了个 <code>Order</code> 属性，并且前者的 Configure 方法签名为<code>void Configure(IApplicationBuilder app, IRouteBuilder routes, IServiceProvider serviceProvider)</code>，后者为 <code>void Configure(IApplicationBuilder app)</code>。因为模块通常位于不同的程序集， <code>Order</code> 属性的作用是控制向 DI 容器注册服务、添加中间件、添加配置和添加路由的顺序。</p>
+<blockquote>
+<p>备注：<code>void Configure(IApplicationBuilder app, IRouteBuilder routes, IServiceProvider serviceProvider)</code> 的 <code>routes</code> 和 <code>serviceProvier</code> 是为了支持模块化和 <code>Multi-Tenancy</code>。</p>
+</blockquote>
+<h2 id="三、模块引擎"><a href="#三、模块引擎" class="headerlink" title="三、模块引擎"></a>三、模块引擎</h2><p>事实上没有一种明确的组件叫模块引擎。<code>OrchardCore</code> 提供了一些由于支持模块的基础设施，并提供将分散于各个模块的服务收集起来注册至 DI 容器，以及中间件添加至请求管道的机制。</p>
+<h3 id="1、AddOrchardCore"><a href="#1、AddOrchardCore" class="headerlink" title="1、AddOrchardCore"></a>1、AddOrchardCore</h3><p><code>AddOrchardCore</code> 不准确地说就是将服务注册至 DI 容器中以及将中间件添加至请求管道的，并返回一个 <code>OrchardCoreBuilder</code> 对象。<br><code>OrchardCoreBuilder</code> 严格来说不是生成器模式，它类似于 <code>Startup</code> 类有 <code>ConfigureServices</code> 和 <code>Configure</code>方法。但是当调用这两类方法时，并不是直接将服务注册到 DI 容器中或注册中间件，而是将注册的方式通过委托保存在集合中(通过 <code>StartupActions</code> )。这样做的目的是为了将来给每个 <code>Tenant</code> 注册这些服务和中间件。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> Adds OrchardCore services to the host service collection.</span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> OrchardCoreBuilder <span class="title">AddOrchardCore</span>(<span class="params"><span class="keyword">this</span> IServiceCollection services</span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// If an instance of OrchardCoreBuilder exists reuse it,</span></span><br><span class="line">    <span class="comment">// so we can call AddOrchardCore several times.</span></span><br><span class="line">    <span class="keyword">var</span> builder = services</span><br><span class="line">        .LastOrDefault(d =&gt; d.ServiceType == <span class="keyword">typeof</span>(OrchardCoreBuilder))?</span><br><span class="line">        .ImplementationInstance <span class="keyword">as</span> OrchardCoreBuilder;</span><br><span class="line">    <span class="keyword">if</span> (builder == <span class="literal">null</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        builder = <span class="keyword">new</span> OrchardCoreBuilder(services);</span><br><span class="line">        services.AddSingleton(builder);</span><br><span class="line"></span><br><span class="line">        AddDefaultServices(services);</span><br><span class="line">        AddShellServices(services);</span><br><span class="line">        AddExtensionServices(builder);</span><br><span class="line"></span><br><span class="line">        AddStaticFiles(builder);</span><br><span class="line"></span><br><span class="line">        AddAntiForgery(builder);</span><br><span class="line">        AddAuthentication(builder);</span><br><span class="line">        AddDataProtection(builder);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Register the list of services to be resolved later on</span></span><br><span class="line">        services.AddSingleton(services);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> builder;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="①-AddDefaultServices"><a href="#①-AddDefaultServices" class="headerlink" title="① AddDefaultServices"></a>① AddDefaultServices</h4><p>添加默认服务，比如 <code>Logging</code>、<code>Localization</code> 和 <code>Web Encoders</code> (指 <code>Html</code>、<code>Url</code> 和 <code>Javascript</code> 的编码器)。<br>重要的是添加 <code>Routing</code> 服务。<code>IServiceCollection</code> 的扩展方法 <code>AddMvc</code>/<code>AddMvcCore</code> 会添加 <code>Routing</code> 服务。就算不是 <code>MVC</code> 应用也可以是使用路由，并且 <code>OrchardCore</code> 的路由可配置在不同的模块，所以在这里注册是因为后续会使用 <code>Routing</code> 相关服务。</p>
+<h4 id="②-AddShellServices"><a href="#②-AddShellServices" class="headerlink" title="② AddShellServices"></a>② AddShellServices</h4><p>添加用于支持 <code>Tenant</code> 的相关服务。<code>Shell</code> 涉及众多的类，这里暂时不分析。</p>
+<h4 id="③-AddExtensionServices"><a href="#③-AddExtensionServices" class="headerlink" title="③ AddExtensionServices"></a>③ AddExtensionServices</h4><p>添加用于支持模块化的相关服务。主要是 <code>AssemblyAttributeModuleNamesProvider : IModuleNamesProvider</code> 和 <code>ModularApplicationContext : IApplicationContext</code> 。<br><code>AssemblyAttributeModuleNamesProvider</code> 提供了一种从程序集的 Attribute 获取模块名称的方式。<br><code>ModularApplicationContext</code> 提供了一个 <code>OrchardCore.Modules.Application</code> 对象，可在某些情况下指代应用。使用 <code>ModularApplicationContext</code> 的属性 <code>Application</code> 时，会触发 <code>Application</code> 对象的构造过程。</p>
+<h4 id="④-AddStaticFiles"><a href="#④-AddStaticFiles" class="headerlink" title="④ AddStaticFiles"></a>④ AddStaticFiles</h4><p>添加静态文件服务中间件，主要是增加 <code>ModuleEmbeddedStaticFileProvider</code> 的支持。</p>
+<h4 id="⑤-AddAntiForgery"><a href="#⑤-AddAntiForgery" class="headerlink" title="⑤ AddAntiForgery"></a>⑤ AddAntiForgery</h4><p>主要是提供对 <code>Multi-Tenancy</code> 的支持。为不同的 <code>Tenant</code> 的 <code>Antiforgery</code> <code>Cookie</code> 设置的名称和路径。</p>
+<h4 id="⑥-AddAuthentication"><a href="#⑥-AddAuthentication" class="headerlink" title="⑥ AddAuthentication"></a>⑥ AddAuthentication</h4><p>主要是提供对 <code>Multi-Tenancy</code> 的支持。</p>
+<h4 id="⑦-AddDataProtection"><a href="#⑦-AddDataProtection" class="headerlink" title="⑦ AddDataProtection"></a>⑦ AddDataProtection</h4><p>主要是提供对 <code>Multi-Tenancy</code> 的支持。</p>
+<h3 id="2、AddMvc"><a href="#2、AddMvc" class="headerlink" title="2、AddMvc"></a>2、AddMvc</h3><p>AddMvc 主要作用是添加和 <code>Mvc</code> 相关的中间件。请注意这是 <code>OrchardBuilder</code> 而不是 <code>IServiceCollection</code> 的扩展方法。<br>类似的方法 <code>AddNancy</code> 用于提供对 <a target="_blank" rel="noopener" href="http://nancyfx.org/">Nancy</a> 的支持。</p>
+<h3 id="3、UseOrchardCore"><a href="#3、UseOrchardCore" class="headerlink" title="3、UseOrchardCore"></a>3、UseOrchardCore</h3><p><code>UseOrchardCore</code> 是一个 <code>IApplicationBuilder</code> 的扩展方法，主要作用是添加中间件 <code>ModularTenantContainerMiddleware</code> 和 <code>ModularTenantRouterMiddleware</code> 。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">namespace</span> <span class="title">Microsoft.AspNetCore.Builder</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">class</span> <span class="title">ApplicationBuilderExtensions</span></span><br><span class="line">  &#123;</span><br><span class="line">       <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line">       <span class="comment"><span class="doctag">///</span> Enables multi-tenant requests support for the current path.</span></span><br><span class="line">       <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line">       <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> IApplicationBuilder <span class="title">UseOrchardCore</span>(<span class="params"><span class="keyword">this</span> IApplicationBuilder app, Action&lt;IApplicationBuilder&gt; configure = <span class="literal">null</span></span>)</span></span><br><span class="line"><span class="function"></span>       &#123;</span><br><span class="line">           <span class="keyword">var</span> env = app.ApplicationServices.GetRequiredService&lt;IHostingEnvironment&gt;();</span><br><span class="line">           <span class="keyword">var</span> appContext = app.ApplicationServices.GetRequiredService&lt;IApplicationContext&gt;();</span><br><span class="line">           env.ContentRootFileProvider = <span class="keyword">new</span> CompositeFileProvider(</span><br><span class="line">               <span class="keyword">new</span> ModuleEmbeddedFileProvider(appContext),</span><br><span class="line">               env.ContentRootFileProvider);</span><br><span class="line">           app.UseMiddleware&lt;PoweredByMiddleware&gt;();</span><br><span class="line">           <span class="comment">// Ensure the shell tenants are loaded when a request comes in</span></span><br><span class="line">           <span class="comment">// and replaces the current service provider for the tenant&#x27;s one.</span></span><br><span class="line">           app.UseMiddleware&lt;ModularTenantContainerMiddleware&gt;();</span><br><span class="line">           configure?.Invoke(app);</span><br><span class="line">           app.UseMiddleware&lt;ModularTenantRouterMiddleware&gt;();</span><br><span class="line">           <span class="keyword">return</span> app;</span><br><span class="line">       &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="四、Multi-Tenancy"><a href="#四、Multi-Tenancy" class="headerlink" title="四、Multi-Tenancy"></a>四、Multi-Tenancy</h2><p>在 <code>ModularTenantContainerMiddleware</code> 中间件中，根据 <code>Host</code> 、<code>Port</code> 和 <code>Path</code> 的各种组合匹配不同的 <code>Tenant</code> 。<code>Tenant</code> 的激活延迟性的，在第一次请求 <code>Tenant</code> 才会激活。每个 <code>Tenant</code> 可以有不同的 DI 容器。</p>
+<p>在 <code>ModularTenantRouterMiddleware</code> 中间件中，为当前 <code>Tenant</code> 配置单独的请求管道。</p>
+<h2 id="五、服务和中间件注册点"><a href="#五、服务和中间件注册点" class="headerlink" title="五、服务和中间件注册点"></a>五、服务和中间件注册点</h2><p>总结一下目前为止遇见的服务和中间件注册点。</p>
+<h3 id="1、服务注册点"><a href="#1、服务注册点" class="headerlink" title="1、服务注册点"></a>1、服务注册点</h3><p>包含名为 <code>ConfigureServices</code> 或类似的方法的接口和类：</p>
+<table>
+<thead>
+<tr>
+<th>类/接口</th>
+<th>程序集</th>
+<th>命名空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IStartup</td>
+<td>Microsoft.AspNetCore.Hosting.Abstractions</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>接口。 实现类定义于应用。 配合 IWebHostBuilder.UseStartup 方法。</td>
+</tr>
+<tr>
+<td>Startup</td>
+<td>自定义</td>
+<td>自定义</td>
+<td>定义于应用。不继承任何接口或类，实现 Configure 和 ConfigureServices 等方法。 配合 IWebHostBuilder.UseStartup 方法。</td>
+</tr>
+<tr>
+<td>IWebHostBuilder</td>
+<td>Microsoft.AspNetCore.Hosting.Abstractions</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>接口。</td>
+</tr>
+<tr>
+<td>WebHostBuilder : IWebHostBuilder</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>ConfigureServices 不会进行实际的服务注册操作，当调用 Build 方法时才注册。</td>
+</tr>
+<tr>
+<td>IStartup</td>
+<td>OrchardCore.Modules.Abstractions</td>
+<td>OrchardCore.Modules</td>
+<td>接口。</td>
+</tr>
+<tr>
+<td>StartupBase: IStartup</td>
+<td>OrchardCore.Modules.Abstractions</td>
+<td>OrchardCore.Modules</td>
+<td>抽象类。</td>
+</tr>
+<tr>
+<td>Startup: SetupBase</td>
+<td>自定义</td>
+<td>自定义</td>
+<td>定义于 OrchareCore 模块。</td>
+</tr>
+<tr>
+<td>OrchardCoreBuilder</td>
+<td>OrchardCore .Modules.Abstractions</td>
+<td>Microsoft.Extensions.DependencyInjection</td>
+<td>注册 Tenant 服务和中间件。</td>
+</tr>
+<tr>
+<td>StartupActions</td>
+<td>OrchardCore.Modules.Abstractions</td>
+<td>Microsoft.Extensions.DependencyInjection</td>
+<td>包含 ConfigureServicesActions 属性，而非方法。</td>
+</tr>
+</tbody></table>
+<h3 id="2、中间件注册点"><a href="#2、中间件注册点" class="headerlink" title="2、中间件注册点"></a>2、中间件注册点</h3><p>包含名为 <code>Configure</code> 或类似方法的接口和类：</p>
+<table>
+<thead>
+<tr>
+<th>类/接口</th>
+<th>程序集</th>
+<th>命名空间</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IStartup</td>
+<td>Microsoft.AspNetCore.Hosting.Abstractions</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>接口。实现类定义于应用。 配合 IWebHostBuilder.UseStartup 方法。</td>
+</tr>
+<tr>
+<td>IHostingStartup</td>
+<td>Microsoft.AspNetCore.Hosting.Abstractions</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>接口。</td>
+</tr>
+<tr>
+<td>Startup</td>
+<td>自定义</td>
+<td>自定义</td>
+<td>定义于应用。不继承任何接口或类，实现 Configure 和 ConfigureServices 等方法。 配合 IWebHostBuilder.UseStartup 方法。</td>
+</tr>
+<tr>
+<td>IWebHostBuilder</td>
+<td>Microsoft.AspNetCore.Hosting.Abstractions</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>接口。提供该接口的 Configure 扩展方法。</td>
+</tr>
+<tr>
+<td>WebHostBuilderExtensions</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>Configure 是 IWebHostBuilder 的扩展方法。</td>
+</tr>
+<tr>
+<td>IStartup</td>
+<td>OrchardCore.Modules.Abstractions</td>
+<td>OrchardCore.Modules</td>
+<td>接口。</td>
+</tr>
+<tr>
+<td>StartupBase: IStartup</td>
+<td>OrchardCore.Modules.Abstractions</td>
+<td>OrchardCore.Modules</td>
+<td>抽象类。</td>
+</tr>
+<tr>
+<td>Startup: SetupBase</td>
+<td>自定义</td>
+<td>自定义</td>
+<td>定义于 OrchareCore 模块。</td>
+</tr>
+<tr>
+<td>OrchardCoreBuilder</td>
+<td>OrchardCore .Modules.Abstractions</td>
+<td>Microsoft.Extensions.DependencyInjection</td>
+<td>注册 Tenant 服务和中间件。</td>
+</tr>
+<tr>
+<td>StartupActions</td>
+<td>OrchardCore.Modules.Abstractions</td>
+<td>Microsoft.Extensions.DependencyInjection</td>
+<td>包含 ConfigureActions 属性，而非方法。</td>
+</tr>
+<tr>
+<td>IStartupFilter</td>
+<td>Microsoft.AspNetCore.Hosting.Abstractions</td>
+<td>Microsoft.AspNetCore.Hosting</td>
+<td>接口。实现类定义于应用或 OrchareCore 模块。需注册为服务。</td>
+</tr>
+</tbody></table>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a target="_blank" rel="noopener" href="https://orchardcore.readthedocs.io/en/latest/">https://orchardcore.readthedocs.io/en/latest/</a><br><a target="_blank" rel="noopener" href="http://docs.orchardproject.net/en/latest/">http://docs.orchardproject.net/en/latest/</a><br><a target="_blank" rel="noopener" href="https://docs.microsoft.com/zh-cn/aspnet/core/fundamentals/startup?view=aspnetcore-2.1">https://docs.microsoft.com/zh-cn/aspnet/core/fundamentals/startup?view=aspnetcore-2.1</a><br><a target="_blank" rel="noopener" href="https://docs.microsoft.com/zh-cn/aspnet/core/fundamentals/host/platform-specific-configuration?view=aspnetcore-2.1">https://docs.microsoft.com/zh-cn/aspnet/core/fundamentals/host/platform-specific-configuration?view=aspnetcore-2.1</a><br><a target="_blank" rel="noopener" href="https://docs.microsoft.com/zh-cn/aspnet/core/fundamentals/host/web-host?view=aspnetcore-2.1">https://docs.microsoft.com/zh-cn/aspnet/core/fundamentals/host/web-host?view=aspnetcore-2.1</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ASP-NET-Core/" rel="tag"># ASP.NET Core</a>
+              <a href="/tags/OrchardCore/" rel="tag"># OrchardCore</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2018/10/28/ffmpeg-and-videotoolbox-04/" rel="prev" title="FFmpeg 与 VideoToolBox(4):x264 软编 H.264 和 VideoToolBox 硬编 H.264">
+      <i class="fa fa-chevron-left"></i> FFmpeg 与 VideoToolBox(4):x264 软编 H.264 和 VideoToolBox 硬编 H.264
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2018/11/28/aspnetcore-extend-authorization/" rel="next" title="(Obsolete)ASP.NET Core 授权的扩展：自定义 Authorize Attribute 和 IApplicationModelProvide">
+      (Obsolete)ASP.NET Core 授权的扩展：自定义 Authorize Attribute 和 IApplicationModelProvide <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E6%A8%A1%E5%9D%97%E5%AE%9A%E4%B9%89"><span class="nav-text">二、模块定义</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81Mainifest-cs-%E6%96%87%E4%BB%B6"><span class="nav-text">1、Mainifest.cs 文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81ManifestInfo-%E5%92%8C-FeatureInfo-%E7%B1%BB"><span class="nav-text">2、ManifestInfo 和 FeatureInfo 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81ModuelNameAttribute-%E7%B1%BB"><span class="nav-text">3、ModuelNameAttribute 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4%E3%80%81ModuleMarkerAttribute-%E7%B1%BB"><span class="nav-text">4、ModuleMarkerAttribute 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5%E3%80%81ModuleAssetAttribute%E7%B1%BB"><span class="nav-text">5、ModuleAssetAttribute类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6%E3%80%81Module-%E7%B1%BB"><span class="nav-text">6、Module 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7%E3%80%81IStartup-%E6%8E%A5%E5%8F%A3"><span class="nav-text">7、IStartup 接口</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E6%A8%A1%E5%9D%97%E5%BC%95%E6%93%8E"><span class="nav-text">三、模块引擎</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81AddOrchardCore"><span class="nav-text">1、AddOrchardCore</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E2%91%A0-AddDefaultServices"><span class="nav-text">① AddDefaultServices</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E2%91%A1-AddShellServices"><span class="nav-text">② AddShellServices</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E2%91%A2-AddExtensionServices"><span class="nav-text">③ AddExtensionServices</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E2%91%A3-AddStaticFiles"><span class="nav-text">④ AddStaticFiles</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E2%91%A4-AddAntiForgery"><span class="nav-text">⑤ AddAntiForgery</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E2%91%A5-AddAuthentication"><span class="nav-text">⑥ AddAuthentication</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E2%91%A6-AddDataProtection"><span class="nav-text">⑦ AddDataProtection</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81AddMvc"><span class="nav-text">2、AddMvc</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81UseOrchardCore"><span class="nav-text">3、UseOrchardCore</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81Multi-Tenancy"><span class="nav-text">四、Multi-Tenancy</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E6%9C%8D%E5%8A%A1%E5%92%8C%E4%B8%AD%E9%97%B4%E4%BB%B6%E6%B3%A8%E5%86%8C%E7%82%B9"><span class="nav-text">五、服务和中间件注册点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E6%9C%8D%E5%8A%A1%E6%B3%A8%E5%86%8C%E7%82%B9"><span class="nav-text">1、服务注册点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E4%B8%AD%E9%97%B4%E4%BB%B6%E6%B3%A8%E5%86%8C%E7%82%B9"><span class="nav-text">2、中间件注册点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

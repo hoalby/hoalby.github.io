@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述Libuv 定义了若干枚举，本文集中列出方便查询( 针对 Windows 平台的枚举未完全列出)。这些枚举主要定义在如下文件：include&#x2F;uv.hinclude&#x2F;uv-common.hsrc&#x2F;unix&#x2F;internal.hsrc&#x2F;unix&#x2F;fsevents.c ( Darwin )src&#x2F;win&#x2F;tty.c ( Windows )src&#x2F;win&#x2F;winapi.h ( Windows )">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Libuv 源码分析(4):数据结构—枚举( enum )">
+<meta property="og:url" content="http://blog.tubumu.com/2017/03/14/libuv-analysis-04/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述Libuv 定义了若干枚举，本文集中列出方便查询( 针对 Windows 平台的枚举未完全列出)。这些枚举主要定义在如下文件：include&#x2F;uv.hinclude&#x2F;uv-common.hsrc&#x2F;unix&#x2F;internal.hsrc&#x2F;unix&#x2F;fsevents.c ( Darwin )src&#x2F;win&#x2F;tty.c ( Windows )src&#x2F;win&#x2F;winapi.h ( Windows )">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2017-03-14T13:14:35.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.804Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="Libuv">
+<meta property="article:tag" content="Libuv 源码分析">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://blog.tubumu.com/2017/03/14/libuv-analysis-04/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Libuv 源码分析(4):数据结构—枚举( enum ) | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2017/03/14/libuv-analysis-04/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Libuv 源码分析(4):数据结构—枚举( enum )
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2017-03-14 21:14:35" itemprop="dateCreated datePublished" datetime="2017-03-14T21:14:35+08:00">2017-03-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Code-Reading/" itemprop="url" rel="index"><span itemprop="name">Code Reading</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>Libuv 定义了若干枚举，本文集中列出方便查询( 针对 Windows 平台的枚举未完全列出)。这些枚举主要定义在如下文件：<br>include/uv.h<br>include/uv-common.h<br>src/unix/internal.h<br>src/unix/fsevents.c ( Darwin )<br>src/win/tty.c ( Windows )<br>src/win/winapi.h ( Windows )</p>
+<a id="more"></a>
+
+<h2 id="二、用于声明枚举的映射-Map-的宏"><a href="#二、用于声明枚举的映射-Map-的宏" class="headerlink" title="二、用于声明枚举的映射( Map )的宏"></a>二、用于声明枚举的映射( Map )的宏</h2><p>主要目的是方便维护、减少出错几率和减少代码量。<br><code>UV_ERRNO_MAP</code> ：映射错误号和错误消息。用在 <code>uv_strerror</code> 和 <code>uv_err_name</code> 函数。<br><code>UV_HANDLE_TYPE_MAP</code> ：映射 Handles 类型。<br><code>UV_REQ_TYPE_MAP</code> ：映射 Requests 类型。</p>
+<p>注：映射宏一般配合命名为 “XX” 的临时宏使用。</p>
+<h2 id="三、include-uv-h"><a href="#三、include-uv-h" class="headerlink" title="三、include/uv.h"></a>三、include/uv.h</h2><h3 id="1、uv-errno-t-：错误号"><a href="#1、uv-errno-t-：错误号" class="headerlink" title="1、uv_errno_t ：错误号"></a>1、<code>uv_errno_t</code> ：错误号</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> XX(code, _) UV_ ## code = UV__ ## code,</span></span><br><span class="line">  UV_ERRNO_MAP(XX)</span><br><span class="line"><span class="meta">#<span class="meta-keyword">undef</span> XX</span></span><br><span class="line">  UV_ERRNO_MAX = UV__EOF - <span class="number">1</span></span><br><span class="line">&#125; <span class="keyword">uv_errno_t</span>;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、uv-handle-type-：Handle-类型"><a href="#2、uv-handle-type-：Handle-类型" class="headerlink" title="2、uv_handle_type ：Handle 类型"></a>2、<code>uv_handle_type</code> ：Handle 类型</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_UNKNOWN_HANDLE = <span class="number">0</span>,</span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> XX(uc, lc) UV_##uc,</span></span><br><span class="line">  UV_HANDLE_TYPE_MAP(XX)</span><br><span class="line"><span class="meta">#<span class="meta-keyword">undef</span> XX</span></span><br><span class="line">  UV_FILE,</span><br><span class="line">  UV_HANDLE_TYPE_MAX</span><br><span class="line">&#125; uv_handle_type;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3、uv-req-type-：Request-类型"><a href="#3、uv-req-type-：Request-类型" class="headerlink" title="3、uv_req_type ：Request 类型"></a>3、<code>uv_req_type</code> ：Request 类型</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_UNKNOWN_REQ = <span class="number">0</span>,</span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> XX(uc, lc) UV_##uc,</span></span><br><span class="line">  UV_REQ_TYPE_MAP(XX)</span><br><span class="line"><span class="meta">#<span class="meta-keyword">undef</span> XX</span></span><br><span class="line">  UV_REQ_TYPE_PRIVATE</span><br><span class="line">  UV_REQ_TYPE_MAX</span><br><span class="line">&#125; uv_req_type;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4、uv-loop-option-：Loop-选项"><a href="#4、uv-loop-option-：Loop-选项" class="headerlink" title="4、uv_loop_option ：Loop 选项"></a>4、<code>uv_loop_option</code> ：Loop 选项</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_LOOP_BLOCK_SIGNAL</span><br><span class="line">&#125; uv_loop_option;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5、uv-run-mode-：Loop-运行模式"><a href="#5、uv-run-mode-：Loop-运行模式" class="headerlink" title="5、uv_run_mode ：Loop 运行模式"></a>5、<code>uv_run_mode</code> ：Loop 运行模式</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_RUN_DEFAULT = <span class="number">0</span>,</span><br><span class="line">  UV_RUN_ONCE,</span><br><span class="line">  UV_RUN_NOWAIT</span><br><span class="line">&#125; uv_run_mode;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6、uv-membership-：UDP-socket-组播选项"><a href="#6、uv-membership-：UDP-socket-组播选项" class="headerlink" title="6、uv_membership ：UDP socket 组播选项"></a>6、<code>uv_membership</code> ：UDP socket 组播选项</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_LEAVE_GROUP = <span class="number">0</span>,</span><br><span class="line">  UV_JOIN_GROUP</span><br><span class="line">&#125; uv_membership;</span><br></pre></td></tr></table></figure>
+
+<h3 id="7、uv-tcp-flags-：TCP-socket-标记"><a href="#7、uv-tcp-flags-：TCP-socket-标记" class="headerlink" title="7、uv_tcp_flags ：TCP socket 标记"></a>7、<code>uv_tcp_flags</code> ：TCP socket 标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv_tcp_flags</span> &#123;</span></span><br><span class="line">  <span class="comment">/* Used with uv_tcp_bind, when an IPv6 address is used. */</span></span><br><span class="line">  UV_TCP_IPV6ONLY = <span class="number">1</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="8、uv-udp-flags-：UDP-socket-标记"><a href="#8、uv-udp-flags-：UDP-socket-标记" class="headerlink" title="8、uv_udp_flags ：UDP socket 标记"></a>8、<code>uv_udp_flags</code> ：UDP socket 标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv_udp_flags</span> &#123;</span></span><br><span class="line">  <span class="comment">/* Disables dual stack mode. */</span></span><br><span class="line">  UV_UDP_IPV6ONLY = <span class="number">1</span>,</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * Indicates message was truncated because read buffer was too small. The</span></span><br><span class="line"><span class="comment">   * remainder was discarded by the OS. Used in uv_udp_recv_cb.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_UDP_PARTIAL = <span class="number">2</span>,</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * Indicates if SO_REUSEADDR will be set when binding the handle.</span></span><br><span class="line"><span class="comment">   * This sets the SO_REUSEPORT socket flag on the BSDs and OS X. On other</span></span><br><span class="line"><span class="comment">   * UNIX platforms, it sets the SO_REUSEADDR flag.  What that means is that</span></span><br><span class="line"><span class="comment">   * multiple threads or processes can bind to the same address without error</span></span><br><span class="line"><span class="comment">   * (provided they all set the flag) but only the last one to bind will receive</span></span><br><span class="line"><span class="comment">   * any traffic, in effect &quot;stealing&quot; the port from the previous listener.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_UDP_REUSEADDR = <span class="number">4</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="9、uv-tty-mode-t-：tty-模式"><a href="#9、uv-tty-mode-t-：tty-模式" class="headerlink" title="9、uv_tty_mode_t ：tty 模式"></a>9、<code>uv_tty_mode_t</code> ：tty 模式</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  <span class="comment">/* Initial/normal terminal mode */</span></span><br><span class="line">  UV_TTY_MODE_NORMAL,</span><br><span class="line">  <span class="comment">/* Raw input mode (On Windows, ENABLE_WINDOW_INPUT is also enabled) */</span></span><br><span class="line">  UV_TTY_MODE_RAW,</span><br><span class="line">  <span class="comment">/* Binary-safe I/O mode for IPC (UNIX-only) */</span></span><br><span class="line">  UV_TTY_MODE_IO</span><br><span class="line">&#125; <span class="keyword">uv_tty_mode_t</span>;</span><br></pre></td></tr></table></figure>
+
+<h3 id="10、poll-事件"><a href="#10、poll-事件" class="headerlink" title="10、poll 事件"></a>10、poll 事件</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv_poll_event</span> &#123;</span></span><br><span class="line">  UV_READABLE = <span class="number">1</span>,</span><br><span class="line">  UV_WRITABLE = <span class="number">2</span>,</span><br><span class="line">  UV_DISCONNECT = <span class="number">4</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="11、uv-stdio-flags-：标准-IO-标记"><a href="#11、uv-stdio-flags-：标准-IO-标记" class="headerlink" title="11、uv_stdio_flags ：标准 IO 标记"></a>11、<code>uv_stdio_flags</code> ：标准 IO 标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* uv_spawn() options. */</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_IGNORE         = <span class="number">0x00</span>,</span><br><span class="line">  UV_CREATE_PIPE    = <span class="number">0x01</span>,</span><br><span class="line">  UV_INHERIT_FD     = <span class="number">0x02</span>,</span><br><span class="line">  UV_INHERIT_STREAM = <span class="number">0x04</span>,</span><br><span class="line"></span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * When UV_CREATE_PIPE is specified, UV_READABLE_PIPE and UV_WRITABLE_PIPE</span></span><br><span class="line"><span class="comment">   * determine the direction of flow, from the child process&#x27; perspective. Both</span></span><br><span class="line"><span class="comment">   * flags may be specified to create a duplex data stream.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_READABLE_PIPE  = <span class="number">0x10</span>,</span><br><span class="line">  UV_WRITABLE_PIPE  = <span class="number">0x20</span></span><br><span class="line">&#125; uv_stdio_flags;</span><br></pre></td></tr></table></figure>
+
+<h3 id="12、uv-process-flags-：进程标记"><a href="#12、uv-process-flags-：进程标记" class="headerlink" title="12、uv_process_flags ：进程标记"></a>12、<code>uv_process_flags</code> ：进程标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * These are the flags that can be used for the uv_process_options.flags field.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv_process_flags</span> &#123;</span></span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * Set the child process&#x27; user id. The user id is supplied in the `uid` field</span></span><br><span class="line"><span class="comment">   * of the options struct. This does not work on windows; setting this flag</span></span><br><span class="line"><span class="comment">   * will cause uv_spawn() to fail.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_PROCESS_SETUID = (<span class="number">1</span> &lt;&lt; <span class="number">0</span>),</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * Set the child process&#x27; group id. The user id is supplied in the `gid`</span></span><br><span class="line"><span class="comment">   * field of the options struct. This does not work on windows; setting this</span></span><br><span class="line"><span class="comment">   * flag will cause uv_spawn() to fail.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_PROCESS_SETGID = (<span class="number">1</span> &lt;&lt; <span class="number">1</span>),</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * Do not wrap any arguments in quotes, or perform any other escaping, when</span></span><br><span class="line"><span class="comment">   * converting the argument list into a command line string. This option is</span></span><br><span class="line"><span class="comment">   * only meaningful on Windows systems. On UNIX it is silently ignored.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS = (<span class="number">1</span> &lt;&lt; <span class="number">2</span>),</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * Spawn the child process in a detached state - this will make it a process</span></span><br><span class="line"><span class="comment">   * group leader, and will effectively enable the child to keep running after</span></span><br><span class="line"><span class="comment">   * the parent exits.  Note that the child process will still keep the</span></span><br><span class="line"><span class="comment">   * parent&#x27;s event loop alive unless the parent process calls uv_unref() on</span></span><br><span class="line"><span class="comment">   * the child&#x27;s process handle.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_PROCESS_DETACHED = (<span class="number">1</span> &lt;&lt; <span class="number">3</span>),</span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * Hide the subprocess console window that would normally be created. This</span></span><br><span class="line"><span class="comment">   * option is only meaningful on Windows systems. On UNIX it is silently</span></span><br><span class="line"><span class="comment">   * ignored.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_PROCESS_WINDOWS_HIDE = (<span class="number">1</span> &lt;&lt; <span class="number">4</span>)</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="13、uv-dirent-type-t-：dirent-结构中的文件类型字段映射"><a href="#13、uv-dirent-type-t-：dirent-结构中的文件类型字段映射" class="headerlink" title="13、uv_dirent_type_t ：dirent 结构中的文件类型字段映射"></a>13、<code>uv_dirent_type_t</code> ：dirent 结构中的文件类型字段映射</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_DIRENT_UNKNOWN,</span><br><span class="line">  UV_DIRENT_FILE,</span><br><span class="line">  UV_DIRENT_DIR,</span><br><span class="line">  UV_DIRENT_LINK,</span><br><span class="line">  UV_DIRENT_FIFO,</span><br><span class="line">  UV_DIRENT_SOCKET,</span><br><span class="line">  UV_DIRENT_CHAR,</span><br><span class="line">  UV_DIRENT_BLOCK</span><br><span class="line">&#125; <span class="keyword">uv_dirent_type_t</span>;</span><br></pre></td></tr></table></figure>
+
+<h3 id="14、uv-fs-type-：文件系统操作类型"><a href="#14、uv-fs-type-：文件系统操作类型" class="headerlink" title="14、uv_fs_type ：文件系统操作类型"></a>14、<code>uv_fs_type</code> ：文件系统操作类型</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_FS_UNKNOWN = <span class="number">-1</span>,</span><br><span class="line">  UV_FS_CUSTOM,</span><br><span class="line">  UV_FS_OPEN,</span><br><span class="line">  UV_FS_CLOSE,</span><br><span class="line">  UV_FS_READ,</span><br><span class="line">  UV_FS_WRITE,</span><br><span class="line">  UV_FS_SENDFILE,</span><br><span class="line">  UV_FS_STAT,</span><br><span class="line">  UV_FS_LSTAT,</span><br><span class="line">  UV_FS_FSTAT,</span><br><span class="line">  UV_FS_FTRUNCATE,</span><br><span class="line">  UV_FS_UTIME,</span><br><span class="line">  UV_FS_FUTIME,</span><br><span class="line">  UV_FS_ACCESS,</span><br><span class="line">  UV_FS_CHMOD,</span><br><span class="line">  UV_FS_FCHMOD,</span><br><span class="line">  UV_FS_FSYNC,</span><br><span class="line">  UV_FS_FDATASYNC,</span><br><span class="line">  UV_FS_UNLINK,</span><br><span class="line">  UV_FS_RMDIR,</span><br><span class="line">  UV_FS_MKDIR,</span><br><span class="line">  UV_FS_MKDTEMP,</span><br><span class="line">  UV_FS_RENAME,</span><br><span class="line">  UV_FS_SCANDIR,</span><br><span class="line">  UV_FS_LINK,</span><br><span class="line">  UV_FS_SYMLINK,</span><br><span class="line">  UV_FS_READLINK,</span><br><span class="line">  UV_FS_CHOWN,</span><br><span class="line">  UV_FS_FCHOWN,</span><br><span class="line">  UV_FS_REALPATH</span><br><span class="line">&#125; uv_fs_type;</span><br></pre></td></tr></table></figure>
+
+<h3 id="15、uv-fs-event-：文件系统事件"><a href="#15、uv-fs-event-：文件系统事件" class="headerlink" title="15、uv_fs_event ：文件系统事件"></a>15、<code>uv_fs_event</code> ：文件系统事件</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv_fs_event</span> &#123;</span></span><br><span class="line">  UV_RENAME = <span class="number">1</span>,</span><br><span class="line">  UV_CHANGE = <span class="number">2</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="16、uv-fs-event-flags-：文件系统事件处理标记"><a href="#16、uv-fs-event-flags-：文件系统事件处理标记" class="headerlink" title="16、uv_fs_event_flags ：文件系统事件处理标记"></a>16、<code>uv_fs_event_flags</code> ：文件系统事件处理标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Flags to be passed to uv_fs_event_start().</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv_fs_event_flags</span> &#123;</span></span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * By default, if the fs event watcher is given a directory name, we will</span></span><br><span class="line"><span class="comment">   * watch for all events in that directory. This flags overrides this behavior</span></span><br><span class="line"><span class="comment">   * and makes fs_event report only changes to the directory entry itself. This</span></span><br><span class="line"><span class="comment">   * flag does not affect individual files watched.</span></span><br><span class="line"><span class="comment">   * This flag is currently not implemented yet on any backend.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_FS_EVENT_WATCH_ENTRY = <span class="number">1</span>,</span><br><span class="line"></span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * By default uv_fs_event will try to use a kernel interface such as inotify</span></span><br><span class="line"><span class="comment">   * or kqueue to detect events. This may not work on remote filesystems such</span></span><br><span class="line"><span class="comment">   * as NFS mounts. This flag makes fs_event fall back to calling stat() on a</span></span><br><span class="line"><span class="comment">   * regular interval.</span></span><br><span class="line"><span class="comment">   * This flag is currently not implemented yet on any backend.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_FS_EVENT_STAT = <span class="number">2</span>,</span><br><span class="line"></span><br><span class="line">  <span class="comment">/*</span></span><br><span class="line"><span class="comment">   * By default, event watcher, when watching directory, is not registering</span></span><br><span class="line"><span class="comment">   * (is ignoring) changes in it&#x27;s subdirectories.</span></span><br><span class="line"><span class="comment">   * This flag will override this behaviour on platforms that support it.</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  UV_FS_EVENT_RECURSIVE = <span class="number">4</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>目前仅在 macOS 和 Windows 使用了 <code>UV_FS_EVENT_RECURSIVE</code> 标记。</p>
+<h2 id="四、include-uv-common-h"><a href="#四、include-uv-common-h" class="headerlink" title="四、include/uv-common.h"></a>四、include/uv-common.h</h2><h3 id="1、Handle-标记"><a href="#1、Handle-标记" class="headerlink" title="1、Handle 标记"></a>1、Handle 标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">ifndef</span> _WIN32</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV__HANDLE_INTERNAL = <span class="number">0x8000</span>,</span><br><span class="line">  UV__HANDLE_ACTIVE   = <span class="number">0x4000</span>,</span><br><span class="line">  UV__HANDLE_REF      = <span class="number">0x2000</span>,</span><br><span class="line">  UV__HANDLE_CLOSING  = <span class="number">0</span> <span class="comment">/* no-op on unix */</span></span><br><span class="line">&#125;;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line"><span class="meta"># <span class="meta-keyword">define</span> UV__HANDLE_INTERNAL  0x80</span></span><br><span class="line"><span class="meta"># <span class="meta-keyword">define</span> UV__HANDLE_ACTIVE    0x40</span></span><br><span class="line"><span class="meta"># <span class="meta-keyword">define</span> UV__HANDLE_REF       0x20</span></span><br><span class="line"><span class="meta"># <span class="meta-keyword">define</span> UV__HANDLE_CLOSING   0x01</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<h2 id="五、src-unix-internal-h"><a href="#五、src-unix-internal-h" class="headerlink" title="五、src/unix/internal.h"></a>五、src/unix/internal.h</h2><h3 id="1、Handle-标记-1"><a href="#1、Handle-标记-1" class="headerlink" title="1、Handle 标记"></a>1、Handle 标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* handle flags */</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_CLOSING              = <span class="number">0x01</span>,   <span class="comment">/* uv_close() called but not finished. */</span></span><br><span class="line">  UV_CLOSED               = <span class="number">0x02</span>,   <span class="comment">/* close(2) finished. */</span></span><br><span class="line">  UV_STREAM_READING       = <span class="number">0x04</span>,   <span class="comment">/* uv_read_start() called. */</span></span><br><span class="line">  UV_STREAM_SHUTTING      = <span class="number">0x08</span>,   <span class="comment">/* uv_shutdown() called but not complete. */</span></span><br><span class="line">  UV_STREAM_SHUT          = <span class="number">0x10</span>,   <span class="comment">/* Write side closed. */</span></span><br><span class="line">  UV_STREAM_READABLE      = <span class="number">0x20</span>,   <span class="comment">/* The stream is readable */</span></span><br><span class="line">  UV_STREAM_WRITABLE      = <span class="number">0x40</span>,   <span class="comment">/* The stream is writable */</span></span><br><span class="line">  UV_STREAM_BLOCKING      = <span class="number">0x80</span>,   <span class="comment">/* Synchronous writes. */</span></span><br><span class="line">  UV_STREAM_READ_PARTIAL  = <span class="number">0x100</span>,  <span class="comment">/* read(2) read less than requested. */</span></span><br><span class="line">  UV_STREAM_READ_EOF      = <span class="number">0x200</span>,  <span class="comment">/* read(2) read EOF. */</span></span><br><span class="line">  UV_TCP_NODELAY          = <span class="number">0x400</span>,  <span class="comment">/* Disable Nagle. */</span></span><br><span class="line">  UV_TCP_KEEPALIVE        = <span class="number">0x800</span>,  <span class="comment">/* Turn on keep-alive. */</span></span><br><span class="line">  UV_TCP_SINGLE_ACCEPT    = <span class="number">0x1000</span>, <span class="comment">/* Only accept() when idle. */</span></span><br><span class="line">  UV_HANDLE_IPV6          = <span class="number">0x10000</span>, <span class="comment">/* Handle is bound to a IPv6 socket. */</span></span><br><span class="line">  UV_UDP_PROCESSING       = <span class="number">0x20000</span>  <span class="comment">/* Handle is running the send callback queue. */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、Loop-标记"><a href="#2、Loop-标记" class="headerlink" title="2、Loop 标记"></a>2、Loop 标记</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* loop flags */</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_LOOP_BLOCK_SIGPROF = <span class="number">1</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3、uv-clocktype-t-：时钟类型"><a href="#3、uv-clocktype-t-：时钟类型" class="headerlink" title="3、uv_clocktype_t ：时钟类型"></a>3、<code>uv_clocktype_t</code> ：时钟类型</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> &#123;</span></span><br><span class="line">  UV_CLOCK_PRECISE = <span class="number">0</span>,  <span class="comment">/* Use the highest resolution clock available. */</span></span><br><span class="line">  UV_CLOCK_FAST = <span class="number">1</span>      <span class="comment">/* Use the fastest clock with &lt;= 1ms granularity. */</span></span><br><span class="line">&#125; <span class="keyword">uv_clocktype_t</span>;</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、include-fsevents-c-Darwin"><a href="#六、include-fsevents-c-Darwin" class="headerlink" title="六、include/fsevents.c ( Darwin )"></a>六、include/fsevents.c ( Darwin )</h2><h3 id="1、uv-cf-loop-signal-type-t-：Core-Foundation-事件循环信号类型"><a href="#1、uv-cf-loop-signal-type-t-：Core-Foundation-事件循环信号类型" class="headerlink" title="1、uv__cf_loop_signal_type_t ：Core Foundation 事件循环信号类型"></a>1、<code>uv__cf_loop_signal_type_t </code>：Core Foundation 事件循环信号类型</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv__cf_loop_signal_type_e</span> &#123;</span></span><br><span class="line">  kUVCFLoopSignalRegular,</span><br><span class="line">  kUVCFLoopSignalClosing</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> <span class="title">uv__cf_loop_signal_type_e</span> <span class="title">uv__cf_loop_signal_type_t</span>;</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="七、Windows"><a href="#七、Windows" class="headerlink" title="七、Windows"></a>七、Windows</h2><h3 id="1、-FS-INFORMATION-CLASS"><a href="#1、-FS-INFORMATION-CLASS" class="headerlink" title="1、_FS_INFORMATION_CLASS"></a>1、<code>_FS_INFORMATION_CLASS</code></h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">enum</span> _<span class="title">FS_INFORMATION_CLASS</span> &#123;</span></span><br><span class="line">  FileFsVolumeInformation       = <span class="number">1</span>,</span><br><span class="line">  FileFsLabelInformation        = <span class="number">2</span>,</span><br><span class="line">  FileFsSizeInformation         = <span class="number">3</span>,</span><br><span class="line">  FileFsDeviceInformation       = <span class="number">4</span>,</span><br><span class="line">  FileFsAttributeInformation    = <span class="number">5</span>,</span><br><span class="line">  FileFsControlInformation      = <span class="number">6</span>,</span><br><span class="line">  FileFsFullSizeInformation     = <span class="number">7</span>,</span><br><span class="line">  FileFsObjectIdInformation     = <span class="number">8</span>,</span><br><span class="line">  FileFsDriverPathInformation   = <span class="number">9</span>,</span><br><span class="line">  FileFsVolumeFlagsInformation  = <span class="number">10</span>,</span><br><span class="line">  FileFsSectorSizeInformation   = <span class="number">11</span></span><br><span class="line">&#125; FS_INFORMATION_CLASS, *PFS_INFORMATION_CLASS;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、uv-read-console-status-e"><a href="#2、uv-read-console-status-e" class="headerlink" title="2、uv__read_console_status_e"></a>2、<code>uv__read_console_status_e</code></h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">uv__read_console_status_e</span> &#123;</span></span><br><span class="line">  NOT_STARTED,</span><br><span class="line">  IN_PROGRESS,</span><br><span class="line">  TRAP_REQUESTED,</span><br><span class="line">  COMPLETED</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Libuv/" rel="tag"># Libuv</a>
+              <a href="/tags/Libuv-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/" rel="tag"># Libuv 源码分析</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017/03/14/libuv-analysis-03/" rel="prev" title="Libuv 源码分析(3):错误处理">
+      <i class="fa fa-chevron-left"></i> Libuv 源码分析(3):错误处理
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2017/03/14/libuv-analysis-05/" rel="next" title="Libuv 源码分析(5):数据结构—结构( struct )">
+      Libuv 源码分析(5):数据结构—结构( struct ) <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E7%94%A8%E4%BA%8E%E5%A3%B0%E6%98%8E%E6%9E%9A%E4%B8%BE%E7%9A%84%E6%98%A0%E5%B0%84-Map-%E7%9A%84%E5%AE%8F"><span class="nav-text">二、用于声明枚举的映射( Map )的宏</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81include-uv-h"><span class="nav-text">三、include&#x2F;uv.h</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81uv-errno-t-%EF%BC%9A%E9%94%99%E8%AF%AF%E5%8F%B7"><span class="nav-text">1、uv_errno_t ：错误号</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81uv-handle-type-%EF%BC%9AHandle-%E7%B1%BB%E5%9E%8B"><span class="nav-text">2、uv_handle_type ：Handle 类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81uv-req-type-%EF%BC%9ARequest-%E7%B1%BB%E5%9E%8B"><span class="nav-text">3、uv_req_type ：Request 类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4%E3%80%81uv-loop-option-%EF%BC%9ALoop-%E9%80%89%E9%A1%B9"><span class="nav-text">4、uv_loop_option ：Loop 选项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5%E3%80%81uv-run-mode-%EF%BC%9ALoop-%E8%BF%90%E8%A1%8C%E6%A8%A1%E5%BC%8F"><span class="nav-text">5、uv_run_mode ：Loop 运行模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6%E3%80%81uv-membership-%EF%BC%9AUDP-socket-%E7%BB%84%E6%92%AD%E9%80%89%E9%A1%B9"><span class="nav-text">6、uv_membership ：UDP socket 组播选项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7%E3%80%81uv-tcp-flags-%EF%BC%9ATCP-socket-%E6%A0%87%E8%AE%B0"><span class="nav-text">7、uv_tcp_flags ：TCP socket 标记</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8%E3%80%81uv-udp-flags-%EF%BC%9AUDP-socket-%E6%A0%87%E8%AE%B0"><span class="nav-text">8、uv_udp_flags ：UDP socket 标记</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9%E3%80%81uv-tty-mode-t-%EF%BC%9Atty-%E6%A8%A1%E5%BC%8F"><span class="nav-text">9、uv_tty_mode_t ：tty 模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10%E3%80%81poll-%E4%BA%8B%E4%BB%B6"><span class="nav-text">10、poll 事件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11%E3%80%81uv-stdio-flags-%EF%BC%9A%E6%A0%87%E5%87%86-IO-%E6%A0%87%E8%AE%B0"><span class="nav-text">11、uv_stdio_flags ：标准 IO 标记</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#12%E3%80%81uv-process-flags-%EF%BC%9A%E8%BF%9B%E7%A8%8B%E6%A0%87%E8%AE%B0"><span class="nav-text">12、uv_process_flags ：进程标记</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#13%E3%80%81uv-dirent-type-t-%EF%BC%9Adirent-%E7%BB%93%E6%9E%84%E4%B8%AD%E7%9A%84%E6%96%87%E4%BB%B6%E7%B1%BB%E5%9E%8B%E5%AD%97%E6%AE%B5%E6%98%A0%E5%B0%84"><span class="nav-text">13、uv_dirent_type_t ：dirent 结构中的文件类型字段映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#14%E3%80%81uv-fs-type-%EF%BC%9A%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%93%8D%E4%BD%9C%E7%B1%BB%E5%9E%8B"><span class="nav-text">14、uv_fs_type ：文件系统操作类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#15%E3%80%81uv-fs-event-%EF%BC%9A%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%BA%8B%E4%BB%B6"><span class="nav-text">15、uv_fs_event ：文件系统事件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#16%E3%80%81uv-fs-event-flags-%EF%BC%9A%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%BA%8B%E4%BB%B6%E5%A4%84%E7%90%86%E6%A0%87%E8%AE%B0"><span class="nav-text">16、uv_fs_event_flags ：文件系统事件处理标记</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81include-uv-common-h"><span class="nav-text">四、include&#x2F;uv-common.h</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81Handle-%E6%A0%87%E8%AE%B0"><span class="nav-text">1、Handle 标记</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81src-unix-internal-h"><span class="nav-text">五、src&#x2F;unix&#x2F;internal.h</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81Handle-%E6%A0%87%E8%AE%B0-1"><span class="nav-text">1、Handle 标记</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81Loop-%E6%A0%87%E8%AE%B0"><span class="nav-text">2、Loop 标记</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81uv-clocktype-t-%EF%BC%9A%E6%97%B6%E9%92%9F%E7%B1%BB%E5%9E%8B"><span class="nav-text">3、uv_clocktype_t ：时钟类型</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81include-fsevents-c-Darwin"><span class="nav-text">六、include&#x2F;fsevents.c ( Darwin )</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81uv-cf-loop-signal-type-t-%EF%BC%9ACore-Foundation-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF%E4%BF%A1%E5%8F%B7%E7%B1%BB%E5%9E%8B"><span class="nav-text">1、uv__cf_loop_signal_type_t ：Core Foundation 事件循环信号类型</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81Windows"><span class="nav-text">七、Windows</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81-FS-INFORMATION-CLASS"><span class="nav-text">1、_FS_INFORMATION_CLASS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81uv-read-console-status-e"><span class="nav-text">2、uv__read_console_status_e</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

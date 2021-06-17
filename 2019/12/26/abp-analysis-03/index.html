@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述Abp 的 DI 容器是基于 Microsoft  的依赖注入扩展库（Microsoft.Extensions.DependencyInjection nuget包）开发的。因此，它的文档在 Abp 中也是有效的。Abp 中可以使用 Autofac  替换内置 DI 容器的，以支持属性注入和动态代理（拦截器）。  备注：Abp  提供的服务自动注册功能用内置的 DI 容器也能实现。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Abp 源码分析（3）：DI 和 Autofac">
+<meta property="og:url" content="http://blog.tubumu.com/2019/12/26/abp-analysis-03/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述Abp 的 DI 容器是基于 Microsoft  的依赖注入扩展库（Microsoft.Extensions.DependencyInjection nuget包）开发的。因此，它的文档在 Abp 中也是有效的。Abp 中可以使用 Autofac  替换内置 DI 容器的，以支持属性注入和动态代理（拦截器）。  备注：Abp  提供的服务自动注册功能用内置的 DI 容器也能实现。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-12-26T12:47:23.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.800Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="Abp">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://blog.tubumu.com/2019/12/26/abp-analysis-03/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Abp 源码分析（3）：DI 和 Autofac | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2019/12/26/abp-analysis-03/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Abp 源码分析（3）：DI 和 Autofac
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2019-12-26 20:47:23" itemprop="dateCreated datePublished" datetime="2019-12-26T20:47:23+08:00">2019-12-26</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Abp/" itemprop="url" rel="index"><span itemprop="name">Abp</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p><code>Abp</code> 的 <a target="_blank" rel="noopener" href="https://zh.wikipedia.org/zh-hans/%E4%BE%9D%E8%B5%96%E6%B3%A8%E5%85%A5">DI</a> 容器是基于 <code>Microsoft</code>  的依赖注入扩展库（Microsoft.Extensions.DependencyInjection nuget包）开发的。因此，它的文档在 <code>Abp</code> 中也是有效的。<br><code>Abp</code> 中可以使用 <code>Autofac</code>  替换内置 DI 容器的，以支持属性注入和动态代理（拦截器）。</p>
+<blockquote>
+<p>备注：<code>Abp</code>  提供的服务自动注册功能用内置的 <code>DI</code> 容器也能实现。</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="二、使用-Autofac-替换内置-DI-容器"><a href="#二、使用-Autofac-替换内置-DI-容器" class="headerlink" title="二、使用 Autofac 替换内置 DI 容器"></a>二、使用 Autofac 替换内置 DI 容器</h2><p>我们知道，<code>.Net Core</code> 中将服务的注册和服务的获取分别交给了 <code>ServiceCollection</code> 和 <code>ServiceProvider</code>。如果使用 Autofac，服务的注册继续使用 ServiceCollection。比如 <code>Startup</code> 的 <code>ConfigureServices</code> 方法等接收的是 <code>IServiceCollection</code> 型的参数。Abp 会将 ServiceColletion 中的服务重新注册入 Autofac，并且使用 <code>AutofacServiceProvider</code> 替换内置 ServiceProvider。</p>
+<p>至少有三种方式可将内置的 DI 容器替换为 Autofac。</p>
+<h3 id="1、如何替换？"><a href="#1、如何替换？" class="headerlink" title="1、如何替换？"></a>1、如何替换？</h3><h4 id="（1）、使用-Startup-的-ConfigureContainer-方法"><a href="#（1）、使用-Startup-的-ConfigureContainer-方法" class="headerlink" title="（1）、使用 Startup 的 ConfigureContainer 方法"></a>（1）、使用 Startup 的 ConfigureContainer 方法</h4><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: Startup.cs</span></span><br><span class="line"><span class="comment">// ConfigureContainer is where you can register things directly</span></span><br><span class="line"><span class="comment">// with Autofac. This runs after ConfigureServices so the things</span></span><br><span class="line"><span class="comment">// here will override registrations made in ConfigureServices.</span></span><br><span class="line"><span class="comment">// Don&#x27;t build the container; that gets done for you. If you</span></span><br><span class="line"><span class="comment">// need a reference to the container, you need to use the</span></span><br><span class="line"><span class="comment">// &quot;Without ConfigureContainer&quot; mechanism shown later.</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">ConfigureContainer</span>(<span class="params">ContainerBuilder builder</span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    builder.RegisterModule(<span class="keyword">new</span> AutofacModule());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）、使用-Startup-的-ConfigureServices-方法"><a href="#（2）、使用-Startup-的-ConfigureServices-方法" class="headerlink" title="（2）、使用 Startup 的 ConfigureServices 方法"></a>（2）、使用 Startup 的 ConfigureServices 方法</h4><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: Startup.cs</span></span><br><span class="line"><span class="comment">// ConfigureServices is where you register dependencies. This gets</span></span><br><span class="line"><span class="comment">// called by the runtime before the Configure method, below.</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> IServiceProvider <span class="title">ConfigureServices</span>(<span class="params">IServiceCollection services</span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// Add services to the collection.</span></span><br><span class="line">    services.AddMvc();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Create the container builder.</span></span><br><span class="line">    <span class="keyword">var</span> builder = <span class="keyword">new</span> ContainerBuilder();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Register dependencies, populate the services from</span></span><br><span class="line">    <span class="comment">// the collection, and build the container.</span></span><br><span class="line">    <span class="comment">//</span></span><br><span class="line">    <span class="comment">// Note that Populate is basically a foreach to add things</span></span><br><span class="line">    <span class="comment">// into Autofac that are in the collection. If you register</span></span><br><span class="line">    <span class="comment">// things in Autofac BEFORE Populate then the stuff in the</span></span><br><span class="line">    <span class="comment">// ServiceCollection can override those things; if you register</span></span><br><span class="line">    <span class="comment">// AFTER Populate those registrations can override things</span></span><br><span class="line">    <span class="comment">// in the ServiceCollection. Mix and match as needed.</span></span><br><span class="line">    builder.Populate(services);</span><br><span class="line">    builder.RegisterType&lt;MyType&gt;().As&lt;IMyType&gt;();</span><br><span class="line">    <span class="keyword">this</span>.ApplicationContainer = builder.Build();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Create the IServiceProvider based on the container.</span></span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> AutofacServiceProvider(<span class="keyword">this</span>.ApplicationContainer);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）、使用自定义-ServiceProviderFactory"><a href="#（3）、使用自定义-ServiceProviderFactory" class="headerlink" title="（3）、使用自定义 ServiceProviderFactory"></a>（3）、使用自定义 <code>ServiceProviderFactory</code></h4><p>Abp 自定义 ServiceProviderFactory，并且提供两种集成方案。</p>
+<p><strong>选择一：自行通过 ServiceProviderFactory 直接创建 ServiceProvider</strong></p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Volo\Abp\AbpAutofacAbpApplicationCreationOptionsExtensions.c</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">class</span> <span class="title">AbpAutofacAbpApplicationCreationOptionsExtensions</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">UseAutofac</span>(<span class="params"><span class="keyword">this</span> AbpApplicationCreationOptions options</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">       ContainerBuilder builder = <span class="keyword">new</span> ContainerBuilder();</span><br><span class="line">       options.Services.AddObjectAccessor&lt;ContainerBuilder&gt;(builder);</span><br><span class="line">       options.Services.AddSingleton&lt;IServiceProviderFactory&lt;ContainerBuilder&gt;&gt;((IServiceProviderFactory&lt;ContainerBuilder&gt;) <span class="keyword">new</span> AbpAutofacServiceProviderFactory(builder));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对应的 Startup.cs：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: Startup.cs</span></span><br><span class="line"><span class="comment">// 返回 IServiceProvider </span></span><br><span class="line"><span class="function"><span class="keyword">public</span> IServiceProvider <span class="title">ConfigureServices</span>(<span class="params">IServiceCollection services</span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    services.AddApplication&lt;AppModule&gt;(options =&gt;&#123;</span><br><span class="line">        options.UseAutofac(); <span class="comment">// 集成 Autofac</span></span><br><span class="line">    &#125;);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 因为将 AbpAutofacServiceProviderFactory 注册为了 IServiceProviderFactory&lt;ContainerBuilder&gt; 的单例，所以 BuildServiceProviderFromFactory 可直接通过 ServceCollection 中获取实例。</span></span><br><span class="line">    <span class="keyword">return</span> services.BuildServiceProviderFromFactory(); </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>注意：ConfigureServices 需返回 IServiceProvider 参数以替换 DefaultServiceProvider。详见：<code>StartupLoader</code> 。</p>
+</blockquote>
+<p><strong>选择二：替换 ServiceProviderFactory</strong></p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Microsoft\Extensions\Hosting\AbpAutofacHostBuilderExtensions.cs</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">class</span> <span class="title">AbpAutofacHostBuilderExtensions</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> IHostBuilder <span class="title">UseAutofac</span>(<span class="params"><span class="keyword">this</span> IHostBuilder hostBuilder</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">var</span> containerBuilder = <span class="keyword">new</span> ContainerBuilder();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> hostBuilder.ConfigureServices((_, services) =&gt;</span><br><span class="line">            &#123;</span><br><span class="line">                services.AddObjectAccessor(containerBuilder);</span><br><span class="line">            &#125;)</span><br><span class="line">            .UseServiceProviderFactory(<span class="keyword">new</span> AbpAutofacServiceProviderFactory(containerBuilder)); <span class="comment">// 替换默认的 DefaultServiceProviderFactory ，详见 `HostBuilder` 。</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>HostBuilder</code> 默认包含一个 <code>ServiceFactoryAdapter</code> 对象，实际适配的是 <code>DefaultServiceProviderFactory</code>。<code>HostBuilder.UseServiceProviderFactory</code> 方法会构造一个新的<code>ServiceFactoryAdapter</code> 对象适配 <code>AbpAutofacServiceProviderFactory</code>。</p>
+<p>对应的 Program.cs：</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: Program.cs</span></span><br><span class="line"><span class="function"><span class="keyword">internal</span> <span class="keyword">static</span> IHostBuilder <span class="title">CreateHostBuilder</span>(<span class="params"><span class="built_in">string</span>[] args</span>)</span> =&gt;</span><br><span class="line">    Host.CreateDefaultBuilder(args)</span><br><span class="line">        .ConfigureWebHostDefaults(webBuilder =&gt;</span><br><span class="line">        &#123;</span><br><span class="line">            webBuilder.UseStartup&lt;Startup&gt;();</span><br><span class="line">        &#125;)</span><br><span class="line">        .UseAutofac() <span class="comment">// 集成 Autofac</span></span><br><span class="line">        .UseSerilog();</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、AbpAutofacServiceProviderFactory-类"><a href="#2、AbpAutofacServiceProviderFactory-类" class="headerlink" title="2、AbpAutofacServiceProviderFactory 类"></a>2、AbpAutofacServiceProviderFactory 类</h3><p><code>AbpAutofacServiceProviderFactory</code> 的作用是将注册入 ServiceCollection 中的服务转移入 Autofac 和生产出 <code>AutofacServiceProvider</code> 。<br>在<code>ContainerBuilder CreateBuilder(IServiceCollection services)</code> 方法中，将之前注册在 ServiceCollection 集合中的服务转移到 Autofac 中。并且启动了属性注入(Property injection)、拦截器(Interceptor)。<br>在<code>IServiceProvider CreateServiceProvider(ContainerBuilder containerBuilder)</code> 方法中，ContainerBuilder 构建一个 Autofac 容器，然后创建 AutofacServiceProvider 返回。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Extensions\DependencyInjection\AutofacServiceProviderFactory.cs</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">AutofacServiceProviderFactory</span> : <span class="title">IServiceProviderFactory</span>&lt;<span class="title">ContainerBuilder</span>&gt; &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">readonly</span> Action&lt;ContainerBuilder&gt; _configurationAction;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">AutofacServiceProviderFactory</span>(<span class="params">Action&lt;ContainerBuilder&gt; </span></span></span><br><span class="line"><span class="function"><span class="params">configurationAction = <span class="literal">null</span></span>)</span> &#123;</span><br><span class="line">        _configurationAction = configurationAction ?? (builder =&gt; &#123; &#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> ContainerBuilder <span class="title">CreateBuilder</span>(<span class="params">IServiceCollection services</span>)</span> &#123;</span><br><span class="line">        <span class="keyword">var</span> builder = <span class="keyword">new</span> ContainerBuilder();</span><br><span class="line">        <span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Extensions\DependencyInjection\AutofacRegistration.cs</span></span><br><span class="line">        <span class="comment">// 将 ServiceCollection 填充入 ContainerBuilder</span></span><br><span class="line">        builder.Populate(services);</span><br><span class="line">        _configurationAction(builder);</span><br><span class="line">        <span class="keyword">return</span> builder;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> IServiceProvider <span class="title">CreateServiceProvider</span>(<span class="params">ContainerBuilder </span></span></span><br><span class="line"><span class="function"><span class="params">containerBuilder</span>)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (containerBuilder == <span class="literal">null</span>) <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentNullException(<span class="keyword">nameof</span>(containerBuilder));</span><br><span class="line">        <span class="keyword">var</span> container = containerBuilder.Build();</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> AutofacServiceProvider(container);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>备注：将 ServiceProviderFactory、ContainerBuilder 和 ServiceProvider 三者的关系做个可能不太恰当的类比。ServiceProvider 是榨汁机，ContainerBuilder 是组装榨汁机的机器，ServiceProviderFactory 可以生产“组装榨汁机的机器”和通过该机器生产最终的“榨汁机”。榨汁机为我们提供榨汁服务。</p>
+</blockquote>
+<blockquote>
+<p>扩展：AutofacServiceProviderFactory</p>
+</blockquote>
+<p>对 <code>AutofacRegistration</code> 的深入分析请见下文。</p>
+<h3 id="3、AutofacServiceProvider-类"><a href="#3、AutofacServiceProvider-类" class="headerlink" title="3、AutofacServiceProvider 类"></a>3、AutofacServiceProvider 类</h3><p><code>AbpServiceProvider</code> 实际上是 Autofac 的<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/zh-hans/%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F">适配器</a>。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Extensions\DependencyInjection\AutofacServiceProvider.cs</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">AutofacServiceProvider</span> : <span class="title">IServiceProvider</span>, <span class="title">ISupportRequiredService</span> &#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">readonly</span> IComponentContext _componentContext;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">AutofacServiceProvider</span>(<span class="params">IComponentContext componentContext</span>)</span> &#123;</span><br><span class="line">        <span class="keyword">this</span>._componentContext = componentContext;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="built_in">object</span> <span class="title">GetRequiredService</span>(<span class="params">Type serviceType</span>)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>._componentContext.Resolve(serviceType);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="built_in">object</span> <span class="title">GetService</span>(<span class="params">Type serviceType</span>)</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>._componentContext.ResolveOptional(serviceType);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4、AutofacServiceScope-类和-AutofacServiceScopeFactory-类"><a href="#4、AutofacServiceScope-类和-AutofacServiceScopeFactory-类" class="headerlink" title="4、AutofacServiceScope 类和 AutofacServiceScopeFactory 类"></a>4、AutofacServiceScope 类和 AutofacServiceScopeFactory 类</h3><p>除了<code>AbpServiceProvider</code> , Abp 也用 <code>AutofacServiceScope</code>  和  <code>AutofacServiceScopeFactory</code> 对 Autofac 中相应的对象进行了适配。</p>
+<h2 id="三、深入-AutofacRegistration"><a href="#三、深入-AutofacRegistration" class="headerlink" title="三、深入 AutofacRegistration"></a>三、深入 AutofacRegistration</h2><p><code>AutofacRegistration</code> 非常重要，它将 ServiceCollection 中注册的服务”填充”到 Autofac 中。</p>
+<h3 id="1、Populate-方法"><a href="#1、Populate-方法" class="headerlink" title="1、Populate 方法"></a>1、Populate 方法</h3><p><code>Populate</code> 首先将 <code>AutofacServiceProvider</code> 和 <code>AutofacServiceScopeFactory</code> 注册到 Autofac 中，然后调用 <code>Regisster</code> 私有方法。<code>AutofacServiceScope</code> 总是在 <code>AutofacServiceScopeFactory</code> 的 <code>CreateScope</code> 方法中直接 new 出来，所以不用注册。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Extensions\DependencyInjection\AutofacRegistration.cs</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">Populate</span>(<span class="params"><span class="keyword">this</span> ContainerBuilder builder, IServiceCollection services</span>)</span> &#123;</span><br><span class="line">    builder.RegisterType&lt;AutofacServiceProvider&gt;().As&lt;IServiceProvider&gt;();</span><br><span class="line">    builder.RegisterType&lt;AutofacServiceScopeFactory&gt;().As&lt;IServiceScopeFactory&gt;();</span><br><span class="line">    Register(builder, services);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2、Register-方法"><a href="#2、Register-方法" class="headerlink" title="2、Register 方法"></a>2、Register 方法</h3><p><code>Register</code> 是 <code>AutofacRegistration</code> 的核心方法。它将 ServiceCollection 中注册的服务重新注册入 Autofac 之外。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Extensions\DependencyInjection\AutofacRegistration.cs</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">Register</span>(<span class="params">ContainerBuilder builder, IServiceCollection services</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">var</span> moduleContainer = services.GetSingletonInstance&lt;IModuleContainer&gt;();</span><br><span class="line">    <span class="keyword">var</span> registrationActionList = services.GetRegistrationActionList();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">foreach</span> (<span class="keyword">var</span> service <span class="keyword">in</span> services) &#123;</span><br><span class="line">        <span class="keyword">if</span> (service.ImplementationType != <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="comment">// Test if the an open generic type is being registered</span></span><br><span class="line">            <span class="keyword">var</span> serviceTypeInfo = service.ServiceType.GetTypeInfo();</span><br><span class="line">            <span class="keyword">if</span> (serviceTypeInfo.IsGenericTypeDefinition) &#123;</span><br><span class="line">                builder</span><br><span class="line">                    .RegisterGeneric(service.ImplementationType)</span><br><span class="line">                    .As(service.ServiceType)</span><br><span class="line">                    .ConfigureLifecycle(service.Lifetime)</span><br><span class="line">                    .ConfigureAbpConventions(moduleContainer, registrationActionList);</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                builder</span><br><span class="line">                    .RegisterType(service.ImplementationType)</span><br><span class="line">                    .As(service.ServiceType)</span><br><span class="line">                    .ConfigureLifecycle(service.Lifetime)</span><br><span class="line">                    .ConfigureAbpConventions(moduleContainer, registrationActionList);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (service.ImplementationFactory != <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="keyword">var</span> registration = RegistrationBuilder.ForDelegate(service.ServiceType, (context, parameters) =&gt; &#123;</span><br><span class="line">                <span class="keyword">var</span> serviceProvider = context.Resolve&lt;IServiceProvider&gt;();</span><br><span class="line">                <span class="keyword">return</span> service.ImplementationFactory(serviceProvider);</span><br><span class="line">            &#125;)</span><br><span class="line">            .ConfigureLifecycle(service.Lifetime)</span><br><span class="line">            .CreateRegistration();</span><br><span class="line">            <span class="comment">//<span class="doctag">TODO:</span> ConfigureAbpConventions ?</span></span><br><span class="line"></span><br><span class="line">            builder.RegisterComponent(registration);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            builder</span><br><span class="line">                .RegisterInstance(service.ImplementationInstance)</span><br><span class="line">                .As(service.ServiceType)</span><br><span class="line">                .ConfigureLifecycle(service.Lifetime);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>AbpRegistrationBuilderExtensions.ConfigureAbpConventions</code> 方法启用属性注入、收集拦截器(<code>Interceptor</code>) 并将之注册入 Autofac 中。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Builder\AbpRegistrationBuilderExtensions.cs</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">class</span> <span class="title">AbpRegistrationBuilderExtensions</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="title">IRegistrationBuilder</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt; <span class="title">ConfigureAbpConventions</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt;(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">            <span class="keyword">this</span> IRegistrationBuilder&lt;TLimit, TActivatorData, TRegistrationStyle&gt; registrationBuilder, </span></span></span><br><span class="line"><span class="function"><span class="params">            IModuleContainer moduleContainer, </span></span></span><br><span class="line"><span class="function"><span class="params">            ServiceRegistrationActionList registrationActionList</span>)</span></span><br><span class="line"><span class="function">        <span class="keyword">where</span> TActivatorData : ReflectionActivatorData</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">var</span> serviceType = registrationBuilder.RegistrationData.Services.OfType&lt;IServiceWithType&gt;().FirstOrDefault()?.ServiceType;</span><br><span class="line">        <span class="keyword">if</span> (serviceType == <span class="literal">null</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">return</span> registrationBuilder;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">var</span> implementationType = registrationBuilder.ActivatorData.ImplementationType;</span><br><span class="line">        <span class="keyword">if</span> (implementationType == <span class="literal">null</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">return</span> registrationBuilder;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 启用属性注入</span></span><br><span class="line">        registrationBuilder = registrationBuilder.EnablePropertyInjection(moduleContainer, implementationType);</span><br><span class="line">        <span class="comment">// 注册后续操作</span></span><br><span class="line">        registrationBuilder = registrationBuilder.InvokeRegistrationActions(registrationActionList, serviceType, implementationType);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> registrationBuilder;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+
+<p>属性注入是 Autofac 的可选功能但 Apb 将之开启。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Builder\AbpRegistrationBuilderExtensions.cs</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="title">IRegistrationBuilder</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt; <span class="title">EnablePropertyInjection</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt;(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">        <span class="keyword">this</span> IRegistrationBuilder&lt;TLimit, TActivatorData, TRegistrationStyle&gt; registrationBuilder, </span></span></span><br><span class="line"><span class="function"><span class="params">        IModuleContainer moduleContainer,</span></span></span><br><span class="line"><span class="function"><span class="params">        Type implementationType</span>) </span></span><br><span class="line"><span class="function">    <span class="keyword">where</span> TActivatorData : ReflectionActivatorData</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">//Enable Property Injection only for types in an assembly containing an AbpModule</span></span><br><span class="line">    <span class="keyword">if</span> (moduleContainer.Modules.Any(m =&gt; m.Assembly == implementationType.Assembly))</span><br><span class="line">    &#123;</span><br><span class="line">        registrationBuilder = registrationBuilder.PropertiesAutowired();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> registrationBuilder;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 Abp 模块的 <code>PreConfigureServices</code> 方法中调用 <code>ServiceCollectionRegistrationActionExtensions.OnRegister</code> 扩展方法可以将某些“注册操作(Registration action)”放入全局的 <code>ServiceRegistrationActionList : List&lt;Action&lt;IOnServiceRegistredContext&gt;&gt;</code> 对象中。执行这些“注册操作”将可能导致拦截器添加到 <code>OnServiceRegistredContext</code> 中（如果“注册操作”的确是添加拦截器的话）。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Builder\AbpRegistrationBuilderExtensions.cs</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="title">IRegistrationBuilder</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt; <span class="title">InvokeRegistrationActions</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt;(<span class="params"><span class="keyword">this</span> IRegistrationBuilder&lt;TLimit, TActivatorData, TRegistrationStyle&gt; registrationBuilder, ServiceRegistrationActionList registrationActionList, Type serviceType, Type implementationType</span>) </span></span><br><span class="line"><span class="function">    <span class="keyword">where</span> TActivatorData : ReflectionActivatorData</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">var</span> serviceRegistredArgs = <span class="keyword">new</span> OnServiceRegistredContext(serviceType, implementationType);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">foreach</span> (<span class="keyword">var</span> registrationAction <span class="keyword">in</span> registrationActionList)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 执行注册操作</span></span><br><span class="line">        registrationAction.Invoke(serviceRegistredArgs);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果服务包含任意拦截器</span></span><br><span class="line">    <span class="keyword">if</span> (serviceRegistredArgs.Interceptors.Any())</span><br><span class="line">    &#123;</span><br><span class="line">        registrationBuilder = registrationBuilder.AddInterceptors(</span><br><span class="line">            serviceType,</span><br><span class="line">            serviceRegistredArgs.Interceptors</span><br><span class="line">        );</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> registrationBuilder;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果服务包含任意拦截器，则会创建代理类来拦截。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framework\src\Volo.Abp.Autofac\Autofac\Builder\AbpRegistrationBuilderExtensions.cs</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="title">IRegistrationBuilder</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt; <span class="title">AddInterceptors</span>&lt;<span class="title">TLimit</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt;(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">this</span> IRegistrationBuilder&lt;TLimit, TActivatorData, TRegistrationStyle&gt; registrationBuilder, </span></span></span><br><span class="line"><span class="function"><span class="params">    Type serviceType,</span></span></span><br><span class="line"><span class="function"><span class="params">    IEnumerable&lt;Type&gt; interceptors</span>)</span></span><br><span class="line"><span class="function">    <span class="keyword">where</span> TActivatorData : ReflectionActivatorData</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (serviceType.IsInterface)</span><br><span class="line">    &#123;</span><br><span class="line">        registrationBuilder = registrationBuilder.EnableInterfaceInterceptors();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">    &#123;</span><br><span class="line">        (registrationBuilder <span class="keyword">as</span> IRegistrationBuilder&lt;TLimit, ConcreteReflectionActivatorData, TRegistrationStyle&gt;)?.EnableClassInterceptors();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">foreach</span> (<span class="keyword">var</span> interceptor <span class="keyword">in</span> interceptors)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 创建代理类来拦截</span></span><br><span class="line">        registrationBuilder.InterceptedBy(</span><br><span class="line">            <span class="keyword">typeof</span>(CastleAbpInterceptorAdapter&lt;&gt;).MakeGenericType(interceptor)</span><br><span class="line">        );</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> registrationBuilder;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>备注：只有 Abp 模块程序集中的类型才会开启属性注入，这就是 AbpRegistrationBuilderExtensions.ConfigureAbpConventions 方法接收一个 IModuleContainer 型参数的原因。通常 AbpApplication 是一个 Module container 。详见 AbpRegistrationBuilderExtensions.EnablePropertyInjection 方法。</p>
+</blockquote>
+<blockquote>
+<p> 扩展：<br> 1、动态代理，见 CastleAbpInterceptorAdapter 。<br> 2、服务注册前后注册后进行某些操作，见 ServiceRegistrationActionList(ServiceCollectionRegistrationActionExtensions)、IExposedServiceTypesProvider、ExposedServiceExplorer 。</p>
+</blockquote>
+<h3 id="3、ConfigureLifecycle-方法"><a href="#3、ConfigureLifecycle-方法" class="headerlink" title="3、ConfigureLifecycle 方法"></a>3、ConfigureLifecycle 方法</h3><p><code>ConfigureLifecycle</code> 方法比较简单，就是将 ServiceCollection 中注册的服务的生命周期，相应地配置到 Autofac 中。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// File: abp\framewrok\src\Volo.Abp.Autofac\Autofac\Extensions\DependencyInjection\AutofacRegistration.cs</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="title">IRegistrationBuilder</span>&lt;<span class="title">object</span>, <span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt; <span class="title">ConfigureLifecycle</span>&lt;<span class="title">TActivatorData</span>, <span class="title">TRegistrationStyle</span>&gt;(<span class="params"></span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">this</span> IRegistrationBuilder&lt;<span class="built_in">object</span>, TActivatorData, TRegistrationStyle&gt; registrationBuilder,</span></span></span><br><span class="line"><span class="function"><span class="params">    ServiceLifetime lifecycleKind</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">switch</span> (lifecycleKind) &#123;</span><br><span class="line">        <span class="keyword">case</span> ServiceLifetime.Singleton:</span><br><span class="line">            registrationBuilder.SingleInstance();</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> ServiceLifetime.Scoped:</span><br><span class="line">            registrationBuilder.InstancePerLifetimeScope();</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> ServiceLifetime.Transient:</span><br><span class="line">            registrationBuilder.InstancePerDependency();</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> registrationBuilder;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a target="_blank" rel="noopener" href="https://docs.abp.io/zh-Hans/abp/latest/Dependency-Injection">https://docs.abp.io/zh-Hans/abp/latest/Dependency-Injection</a><br><a target="_blank" rel="noopener" href="https://autofaccn.readthedocs.io/zh/latest/integration/netcore.html">https://autofaccn.readthedocs.io/zh/latest/integration/netcore.html</a><br><a target="_blank" rel="noopener" href="https://autofaccn.readthedocs.io/zh/latest/integration/aspnetcore.html">https://autofaccn.readthedocs.io/zh/latest/integration/aspnetcore.html</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/myzony/p/10755010.html">https://www.cnblogs.com/myzony/p/10755010.html</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Abp/" rel="tag"># Abp</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/11/06/aspnetcore-extend-authorization-new/" rel="prev" title="ASP.NET Core 授权的扩展：使用 IAuthorizationPolicyProvider 的自定义授权策略提供程序">
+      <i class="fa fa-chevron-left"></i> ASP.NET Core 授权的扩展：使用 IAuthorizationPolicyProvider 的自定义授权策略提供程序
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/01/09/abp-analysis-04/" rel="next" title="Abp 源码分析（4）：Unit of work">
+      Abp 源码分析（4）：Unit of work <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E4%BD%BF%E7%94%A8-Autofac-%E6%9B%BF%E6%8D%A2%E5%86%85%E7%BD%AE-DI-%E5%AE%B9%E5%99%A8"><span class="nav-text">二、使用 Autofac 替换内置 DI 容器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E5%A6%82%E4%BD%95%E6%9B%BF%E6%8D%A2%EF%BC%9F"><span class="nav-text">1、如何替换？</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E3%80%81%E4%BD%BF%E7%94%A8-Startup-%E7%9A%84-ConfigureContainer-%E6%96%B9%E6%B3%95"><span class="nav-text">（1）、使用 Startup 的 ConfigureContainer 方法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E3%80%81%E4%BD%BF%E7%94%A8-Startup-%E7%9A%84-ConfigureServices-%E6%96%B9%E6%B3%95"><span class="nav-text">（2）、使用 Startup 的 ConfigureServices 方法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E3%80%81%E4%BD%BF%E7%94%A8%E8%87%AA%E5%AE%9A%E4%B9%89-ServiceProviderFactory"><span class="nav-text">（3）、使用自定义 ServiceProviderFactory</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81AbpAutofacServiceProviderFactory-%E7%B1%BB"><span class="nav-text">2、AbpAutofacServiceProviderFactory 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81AutofacServiceProvider-%E7%B1%BB"><span class="nav-text">3、AutofacServiceProvider 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4%E3%80%81AutofacServiceScope-%E7%B1%BB%E5%92%8C-AutofacServiceScopeFactory-%E7%B1%BB"><span class="nav-text">4、AutofacServiceScope 类和 AutofacServiceScopeFactory 类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E6%B7%B1%E5%85%A5-AutofacRegistration"><span class="nav-text">三、深入 AutofacRegistration</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81Populate-%E6%96%B9%E6%B3%95"><span class="nav-text">1、Populate 方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81Register-%E6%96%B9%E6%B3%95"><span class="nav-text">2、Register 方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81ConfigureLifecycle-%E6%96%B9%E6%B3%95"><span class="nav-text">3、ConfigureLifecycle 方法</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

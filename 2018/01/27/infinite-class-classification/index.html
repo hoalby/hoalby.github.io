@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述插入、更新、删除和移动操作总是保证结构完好；查询使用一条 SELECT 语句即可；查询节点的所有父节点使用 CET 进行递归查询。其中最复杂的部分是更新和移动。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一种无限级分类的实现">
+<meta property="og:url" content="http://blog.tubumu.com/2018/01/27/infinite-class-classification/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述插入、更新、删除和移动操作总是保证结构完好；查询使用一条 SELECT 语句即可；查询节点的所有父节点使用 CET 进行递归查询。其中最复杂的部分是更新和移动。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2018-01-27T14:14:53.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.803Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="Database">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://blog.tubumu.com/2018/01/27/infinite-class-classification/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>一种无限级分类的实现 | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2018/01/27/infinite-class-classification/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          一种无限级分类的实现
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2018-01-27 22:14:53" itemprop="dateCreated datePublished" datetime="2018-01-27T22:14:53+08:00">2018-01-27</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Database/" itemprop="url" rel="index"><span itemprop="name">Database</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>插入、更新、删除和移动操作总是保证结构完好；查询使用一条 SELECT 语句即可；查询节点的所有父节点使用 CET 进行递归查询。其中最复杂的部分是更新和移动。</p>
+<a id="more"></a>
+
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>节点</td>
+<td>对应一条记录。</td>
+</tr>
+<tr>
+<td>父节点</td>
+<td>节点的 ParentID 对应的记录。</td>
+</tr>
+<tr>
+<td>顶级节点</td>
+<td>当 ParentID 为NULL 时，为顶级节点。</td>
+</tr>
+<tr>
+<td>节点树</td>
+<td>节点及其所有直接和间接子节点形成的树状结构。从数据库角度上看为若干条记录。其中只有顶级父节点的 ParentID 为 NULL ，非顶级父节点的 ParentID 不为 NULL。</td>
+</tr>
+<tr>
+<td>层级</td>
+<td>Level。顶级节点的 Level 为1，以此类推。</td>
+</tr>
+<tr>
+<td>显示序号</td>
+<td>DisplayOrder。从1开始计数。</td>
+</tr>
+</tbody></table>
+<h2 id="二、表结构"><a href="#二、表结构" class="headerlink" title="二、表结构"></a>二、表结构</h2><table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>数据类型</th>
+<th>主键</th>
+<th>可NULL</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GroupID</td>
+<td>uniqueidentifier</td>
+<td>√</td>
+<td></td>
+<td>分类ID</td>
+</tr>
+<tr>
+<td>ParentID</td>
+<td>uniqueidentifier</td>
+<td></td>
+<td>√</td>
+<td>外键</td>
+</tr>
+<tr>
+<td>Name</td>
+<td>nvarchar(50)</td>
+<td></td>
+<td></td>
+<td>分类名称</td>
+</tr>
+<tr>
+<td>Level</td>
+<td>int</td>
+<td></td>
+<td></td>
+<td>层级。从1开始。</td>
+</tr>
+<tr>
+<td>DisplayOrder</td>
+<td>int</td>
+<td></td>
+<td></td>
+<td>显示顺序。从1开始。</td>
+</tr>
+</tbody></table>
+<p>MS SQL Server 表创建脚本：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> [dbo].[<span class="keyword">Group</span>](</span><br><span class="line">    [ParentID] [uniqueidentifier] <span class="literal">NULL</span>,</span><br><span class="line">    [GroupID] [uniqueidentifier] <span class="keyword">NOT</span> <span class="literal">NULL</span>,</span><br><span class="line">    [<span class="keyword">Name</span>] [<span class="keyword">nvarchar</span>](<span class="number">50</span>) <span class="keyword">NOT</span> <span class="literal">NULL</span>,</span><br><span class="line">    [<span class="keyword">Level</span>] [<span class="built_in">int</span>] <span class="keyword">NOT</span> <span class="literal">NULL</span>,</span><br><span class="line">    [DisplayOrder] [<span class="built_in">int</span>] <span class="keyword">NOT</span> <span class="literal">NULL</span>,</span><br><span class="line"><span class="keyword">CONSTRAINT</span> [PK_Group] PRIMARY <span class="keyword">KEY</span> CLUSTERED</span><br><span class="line">(</span><br><span class="line">    [GroupID] <span class="keyword">ASC</span></span><br><span class="line">)<span class="keyword">WITH</span> (PAD_INDEX = <span class="keyword">OFF</span>, STATISTICS_NORECOMPUTE = <span class="keyword">OFF</span>, IGNORE_DUP_KEY = <span class="keyword">OFF</span>, ALLOW_ROW_LOCKS = <span class="keyword">ON</span>, ALLOW_PAGE_LOCKS = <span class="keyword">ON</span>) <span class="keyword">ON</span> [PRIMARY]</span><br><span class="line">) <span class="keyword">ON</span> [PRIMARY]</span><br><span class="line"><span class="keyword">GO</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ALTER</span> <span class="keyword">TABLE</span> [dbo].[<span class="keyword">Group</span>]  <span class="keyword">WITH</span> <span class="keyword">CHECK</span> <span class="keyword">ADD</span>  <span class="keyword">CONSTRAINT</span> [FK_Group_Group] <span class="keyword">FOREIGN</span> <span class="keyword">KEY</span>([ParentID])</span><br><span class="line"><span class="keyword">REFERENCES</span> [dbo].[<span class="keyword">Group</span>] ([GroupID])</span><br><span class="line"><span class="keyword">GO</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ALTER</span> <span class="keyword">TABLE</span> [dbo].[<span class="keyword">Group</span>] <span class="keyword">CHECK</span> <span class="keyword">CONSTRAINT</span> [FK_Group_Group]</span><br><span class="line"><span class="keyword">GO</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>备注：为 Level 和 DisplayOrder 字段增加索引。</p>
+</blockquote>
+<h2 id="三、插入-INSERT"><a href="#三、插入-INSERT" class="headerlink" title="三、插入( INSERT )"></a>三、插入( INSERT )</h2><p>如果作为顶级节点插入( ParentID 为 NULL )，直接将记录添加至最后即可；否则：</p>
+<h3 id="1-ParentID"><a href="#1-ParentID" class="headerlink" title="1. ParentID"></a>1. ParentID</h3><p>新节点的父节点为 ParentID 对应的节点</p>
+<h3 id="2-Level"><a href="#2-Level" class="headerlink" title="2. Level"></a>2. Level</h3><p>新节点的 Level 为父节点的 Level + 1</p>
+<h3 id="3-DisplayOrder"><a href="#3-DisplayOrder" class="headerlink" title="3. DisplayOrder"></a>3. DisplayOrder</h3><p>新节点作为父节点的最后一个节点，其 DisplayOrder 为父节点当前最后一个子节点的 DisplayOrder 增 1。 如果父节点还没有子节点，则 DisplayOrder 为父节点的 DisplayOrder 增 1 ;(换个角度说，新节点的 DisplayOrder，为父节点之后与之同级( Level ) 或层级更小的第一个节点的 DisplayOrder 。如果不存在这样的节点，说明”父节点树”之后没有任何节点了，即为当前所有记录的数量增1。)</p>
+<h3 id="4-在”父节点树”之后的所有节点的-DisplayOrder-增-1"><a href="#4-在”父节点树”之后的所有节点的-DisplayOrder-增-1" class="headerlink" title="4. 在”父节点树”之后的所有节点的 DisplayOrder 增 1"></a>4. 在”父节点树”之后的所有节点的 DisplayOrder 增 1</h3><blockquote>
+<p>备注：另一种更简单的实现是新节点直接作为父节点的第一个节点，则只需将父节点之后的 DisplayOrder 增 1 即可。</p>
+</blockquote>
+<h2 id="四、删除-DELETE"><a href="#四、删除-DELETE" class="headerlink" title="四、删除( DELETE )"></a>四、删除( DELETE )</h2><ol>
+<li>如果预删除节点包含子节点，不允许删除（当然，也可以设计成删除子树，但目前没这样实现）;</li>
+<li>比预删除节点的 DisplayOrder 大的节点的 DisplayOrder 减 1；</li>
+<li>删除节点。</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">UPDATE</span> [<span class="keyword">Group</span>] <span class="keyword">SET</span> [DisplayOrder] = [DisplayOrder]<span class="number">-1</span> <span class="keyword">WHERE</span> [DisplayOrder] &gt; @DisplayOrder;</span><br><span class="line"><span class="keyword">DELETE</span> [<span class="keyword">Group</span>] <span class="keyword">WHERE</span> [GroupID] = @GroupID;</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、移动-MOVE"><a href="#五、移动-MOVE" class="headerlink" title="五、移动 (MOVE)"></a>五、移动 (MOVE)</h2><p>以另一个节点为目标，移到目标节点的上方或下方。如果移动到上方，则作为目标节点的兄弟节点；如果移动到下方，还可选择是作为兄弟节点还是子节点。</p>
+<blockquote>
+<p>备注：如果要移动到目标节点上方，作为另一个节点的子节点呢？那就选择另一个节点作为目标节点吧。</p>
+</blockquote>
+<h2 id="六、更新-UPDATE"><a href="#六、更新-UPDATE" class="headerlink" title="六、更新( UPDATE )"></a>六、更新( UPDATE )</h2><p>如果仅更新 Name 之类的不影响结构的字段很简单，直接 UPDATE 即可。否则包括这三种情况：</p>
+<h3 id="1-顶-gt-子"><a href="#1-顶-gt-子" class="headerlink" title="1. 顶 -&gt; 子"></a>1. 顶 -&gt; 子</h3><p>从顶级节点移动到某个节点下作为其子节点。<br>要区分将导致节点上移还是下移，相应的也会影响节点和父节点之间的节点的 DisplayOrder 。</p>
+<h3 id="2-子-gt-顶"><a href="#2-子-gt-顶" class="headerlink" title="2. 子 -&gt; 顶"></a>2. 子 -&gt; 顶</h3><p>从子节点升级为顶级节点。<br>节点会成为最后一个顶级节点。如果不是想要的顺序，再移动即可。</p>
+<h3 id="3-子-gt-子"><a href="#3-子-gt-子" class="headerlink" title="3. 子 -&gt; 子"></a>3. 子 -&gt; 子</h3><p>作为子节点切换父节点。<br>同样，要区分将 导致节点上移还是下移，相应的也会影响节点和父节点之间的节点的 DisplayOrder 。</p>
+<blockquote>
+<p>备注：更新节点删除该节点再新增节点——当然不会这样做，因为这样比较低效(也可接受)，并且节点可能和其他表的记录有关联。</p>
+</blockquote>
+<h2 id="七、查询节点路径-CET"><a href="#七、查询节点路径-CET" class="headerlink" title="七、查询节点路径( CET )"></a>七、查询节点路径( CET )</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">WITH</span> CET <span class="keyword">AS</span></span><br><span class="line">(</span><br><span class="line">  <span class="keyword">SELECT</span> GroupID, <span class="keyword">Name</span>, DisplayOrder, ParentID</span><br><span class="line">  <span class="keyword">FROM</span> [<span class="keyword">Group</span>]</span><br><span class="line">  <span class="keyword">WHERE</span> GroupID = @GroupID</span><br><span class="line">  <span class="keyword">UNION</span> <span class="keyword">ALL</span></span><br><span class="line">  <span class="keyword">SELECT</span> P.GroupID, P.Name, P.DisplayOrder, P.ParentID</span><br><span class="line">  <span class="keyword">FROM</span> [<span class="keyword">Group</span>] P</span><br><span class="line">  <span class="keyword">JOIN</span> CET Curr <span class="keyword">ON</span> Curr.ParentID = P.GroupID</span><br><span class="line">)</span><br><span class="line"><span class="keyword">SELECT</span> GroupID, <span class="keyword">Name</span>, DisplayOrder, ParentID</span><br><span class="line"><span class="keyword">FROM</span> CET</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> DisplayOrder</span><br></pre></td></tr></table></figure>
+
+<h2 id="八、查询全部-SELECT"><a href="#八、查询全部-SELECT" class="headerlink" title="八、查询全部( SELECT )"></a>八、查询全部( SELECT )</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> GroupID, ParentID, [<span class="keyword">Level</span>], DisplayOrder <span class="keyword">FROM</span> [<span class="keyword">Group</span>] <span class="keyword">ORDER</span> <span class="keyword">BY</span> DisplayOrder</span><br></pre></td></tr></table></figure>
+
+<h2 id="九、节点树-SELECT"><a href="#九、节点树-SELECT" class="headerlink" title="九、节点树 ( SELECT )"></a>九、节点树 ( SELECT )</h2><ol>
+<li>先查询出本节点，主要使用其 Level 和 DisplayOrder；</li>
+<li>查询出本节点的下一个兄弟节点，假设命名为 DisplayOrderNext；</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> DisplayOrder <span class="keyword">AS</span> DisplayOrderNext <span class="keyword">FROM</span> [<span class="keyword">Group</span>] <span class="keyword">WHERE</span> DisplayOrder  &gt; @DisplayOrder <span class="keyword">AND</span> [<span class="keyword">Level</span>] &lt;= @<span class="keyword">Level</span> <span class="keyword">ORDER</span> <span class="keyword">BY</span> DisplayOrder</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>如果 DisplayOrderNext 为 NULL，则本节点无兄弟节点且无 Level 更低的节点，一查到底即可。否则见4：</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> GroupID, ParentID, [<span class="keyword">Level</span>], DisplayOrder <span class="keyword">FROM</span> [<span class="keyword">Group</span>] <span class="keyword">WHERE</span> DisplayOrder &gt;= @DisplayOrder <span class="keyword">ORDER</span> <span class="keyword">BY</span> DisplayOrder</span><br></pre></td></tr></table></figure>
+
+<ol start="4">
+<li>如果 DisplayOrderNext 不为 NULL ：</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> GroupID, ParentID, [<span class="keyword">Level</span>], DisplayOrder <span class="keyword">FROM</span> [<span class="keyword">Group</span>] <span class="keyword">WHERE</span> DisplayOrder &gt;= @DisplayOrder <span class="keyword">AND</span> DisplayOrder &lt; @DisplayOrderNext  <span class="keyword">AND</span> [<span class="keyword">Level</span>] &gt;= @<span class="keyword">Level</span>  <span class="keyword">ORDER</span> <span class="keyword">BY</span> DisplayOrder</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Database/" rel="tag"># Database</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2017/12/27/axios-extension-01/" rel="prev" title="Axios 同时支持下载和 JSON 数据格式">
+      <i class="fa fa-chevron-left"></i> Axios 同时支持下载和 JSON 数据格式
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2018/04/27/python-generator-and-generatorfunction/" rel="next" title="Python 生成器和生成器函数">
+      Python 生成器和生成器函数 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E8%A1%A8%E7%BB%93%E6%9E%84"><span class="nav-text">二、表结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E6%8F%92%E5%85%A5-INSERT"><span class="nav-text">三、插入( INSERT )</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-ParentID"><span class="nav-text">1. ParentID</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Level"><span class="nav-text">2. Level</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-DisplayOrder"><span class="nav-text">3. DisplayOrder</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E5%9C%A8%E2%80%9D%E7%88%B6%E8%8A%82%E7%82%B9%E6%A0%91%E2%80%9D%E4%B9%8B%E5%90%8E%E7%9A%84%E6%89%80%E6%9C%89%E8%8A%82%E7%82%B9%E7%9A%84-DisplayOrder-%E5%A2%9E-1"><span class="nav-text">4. 在”父节点树”之后的所有节点的 DisplayOrder 增 1</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%88%A0%E9%99%A4-DELETE"><span class="nav-text">四、删除( DELETE )</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E7%A7%BB%E5%8A%A8-MOVE"><span class="nav-text">五、移动 (MOVE)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E6%9B%B4%E6%96%B0-UPDATE"><span class="nav-text">六、更新( UPDATE )</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%A1%B6-gt-%E5%AD%90"><span class="nav-text">1. 顶 -&gt; 子</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%AD%90-gt-%E9%A1%B6"><span class="nav-text">2. 子 -&gt; 顶</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%AD%90-gt-%E5%AD%90"><span class="nav-text">3. 子 -&gt; 子</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E6%9F%A5%E8%AF%A2%E8%8A%82%E7%82%B9%E8%B7%AF%E5%BE%84-CET"><span class="nav-text">七、查询节点路径( CET )</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E6%9F%A5%E8%AF%A2%E5%85%A8%E9%83%A8-SELECT"><span class="nav-text">八、查询全部( SELECT )</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E8%8A%82%E7%82%B9%E6%A0%91-SELECT"><span class="nav-text">九、节点树 ( SELECT )</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

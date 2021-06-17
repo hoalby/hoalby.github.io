@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"blog.tubumu.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="一、概述本文简述在 WPF 中绘制功率谱(Power Spectrum)。会将功率谱密度(PSD,Power spectral density)单位转换为分贝(dB, Decibel)， 实现类似于 Adobe Audition 软件中频谱分析的功能。为简单起见及本人需要，FFT 数量使用 2048，窗口函数使用汉宁窗(Hanning)。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="在 WPF 中绘制功率谱(Power Spectrum)">
+<meta property="og:url" content="http://blog.tubumu.com/2020/10/23/spectrum-analyzer-01/index.html">
+<meta property="og:site_name" content="Alby&#39;s blog">
+<meta property="og:description" content="一、概述本文简述在 WPF 中绘制功率谱(Power Spectrum)。会将功率谱密度(PSD,Power spectral density)单位转换为分贝(dB, Decibel)， 实现类似于 Adobe Audition 软件中频谱分析的功能。为简单起见及本人需要，FFT 数量使用 2048，窗口函数使用汉宁窗(Hanning)。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/spectrum-analyzer-01/001.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/spectrum-analyzer-01/003.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/spectrum-analyzer-01/001.png">
+<meta property="og:image" content="http://blog.tubumu.com/postimages/spectrum-analyzer-01/002.png">
+<meta property="article:published_time" content="2020-10-22T19:36:10.000Z">
+<meta property="article:modified_time" content="2020-11-02T01:06:06.806Z">
+<meta property="article:author" content="Alby">
+<meta property="article:tag" content="Audio">
+<meta property="article:tag" content="FFT">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://blog.tubumu.com/postimages/spectrum-analyzer-01/001.png">
+
+<link rel="canonical" href="http://blog.tubumu.com/2020/10/23/spectrum-analyzer-01/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>在 WPF 中绘制功率谱(Power Spectrum) | Alby's blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Alby's blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">世上没有巧合，只有巧合的假象。</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+  <a href="https://github.com/albyho" class="github-corner" title="Follow me on GitHub" aria-label="Follow me on GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://blog.tubumu.com/2020/10/23/spectrum-analyzer-01/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar200x200.png">
+      <meta itemprop="name" content="Alby">
+      <meta itemprop="description" content="Run.">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Alby's blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          在 WPF 中绘制功率谱(Power Spectrum)
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-10-23 03:36:10" itemprop="dateCreated datePublished" datetime="2020-10-23T03:36:10+08:00">2020-10-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-11-02 09:06:06" itemprop="dateModified" datetime="2020-11-02T09:06:06+08:00">2020-11-02</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Audio/" itemprop="url" rel="index"><span itemprop="name">Audio</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>本文简述在 <code>WPF</code> 中绘制功率谱(Power Spectrum)。会将功率谱密度(<a target="_blank" rel="noopener" href="https://baike.baidu.com/item/%E5%8A%9F%E7%8E%87%E8%B0%B1%E5%AF%86%E5%BA%A6/8836146">PSD</a>,Power spectral density)单位转换为分贝(dB, Decibel)， 实现类似于 <a target="_blank" rel="noopener" href="https://www.adobe.com/cn/products/audition.html">Adobe Audition</a> 软件中频谱分析的功能。为简单起见及本人需要，<a target="_blank" rel="noopener" href="https://de.wikipedia.org/wiki/FFT">FFT</a> 数量使用 <code>2048</code>，窗口函数使用<a target="_blank" rel="noopener" href="https://baike.baidu.com/item/%E6%B1%89%E5%AE%81%E7%AA%97/10378703">汉宁窗(Hanning)</a>。</p>
+<p><img src="/postimages/spectrum-analyzer-01/001.png"></p>
+<a id="more"></a>
+
+<h2 id="二、准备音频文件"><a href="#二、准备音频文件" class="headerlink" title="二、准备音频文件"></a>二、准备音频文件</h2><p>为了方便观察，生成一条采样率为 44.1K、单声道、位深 32 bit Float 的，时长为 20 秒的，频率为 40Hz、音量为 0 dB 的正弦波形的，封装格式为 wav 的音频。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> signalGenerator = <span class="keyword">new</span> SignalGenerator()</span><br><span class="line">&#123;</span><br><span class="line">    Gain = <span class="number">1.0</span>,</span><br><span class="line">    Frequency = <span class="number">40</span>,</span><br><span class="line">    Type = SignalGeneratorType.Sin,</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">var</span> sine20Seconds = signalGenerator.Take(TimeSpan.FromSeconds(<span class="number">20</span>));</span><br><span class="line"><span class="keyword">using</span> (<span class="keyword">var</span> wo = <span class="keyword">new</span> WaveFileWriter(<span class="string">@&quot;C:\your\wav\file.wav&quot;</span>, signalGenerator.WaveFormat))</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">var</span> buffer = <span class="keyword">new</span> <span class="built_in">float</span>[signalGenerator.WaveFormat.SampleRate];</span><br><span class="line">    <span class="keyword">var</span> count = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">while</span>((count = sine20Seconds.Read(buffer, <span class="number">0</span>, buffer.Length)) &gt; <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        wo.WriteSamples(buffer, <span class="number">0</span>, count);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/postimages/spectrum-analyzer-01/003.png"><br>图1：波形图</p>
+<h2 id="三、读取音频文件"><a href="#三、读取音频文件" class="headerlink" title="三、读取音频文件"></a>三、读取音频文件</h2><p>读取文件使用 <a target="_blank" rel="noopener" href="https://github.com/naudio/NAudio">NAudo</a>，一是因为其对常见音频格式支持也算友好，二是在 API 方面也比 <a target="_blank" rel="noopener" href="http://www.un4seen.com/">Bass</a>(<a target="_blank" rel="noopener" href="https://github.com/ManagedBass/ManagedBass">ManagedBass</a>) 等其他库更 C# 些，三是在 .Net 下并且在当前场景下用 <a target="_blank" rel="noopener" href="http://ffmpeg.org/">FFmpeg</a> 不太明智。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> NAudio.Wave;</span><br><span class="line"></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> 从单声道 Wav 文件中读取指定数量的采样</span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;para&gt;</span>Note: 如果对多声道音频文件进行操作，可进行改写。<span class="doctag">&lt;/para&gt;</span></span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;param name=&quot;wavFile&quot;&gt;</span><span class="doctag">&lt;/param&gt;</span></span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;param name=&quot;numberOfSamples&quot;&gt;</span><span class="doctag">&lt;/param&gt;</span></span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;returns&gt;</span><span class="doctag">&lt;/returns&gt;</span></span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="built_in">float</span>[] <span class="title">ReadMonoWavFile</span>(<span class="params"><span class="built_in">string</span> wavFile, <span class="built_in">int</span> numberOfSamples = <span class="number">2048</span></span>)</span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">using</span> (<span class="keyword">var</span> wfr = <span class="keyword">new</span> WaveFileReader(wavFile))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">var</span> data = <span class="keyword">new</span> <span class="built_in">float</span>[numberOfSamples];</span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; numberOfSamples; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            data[i] = wfr.ReadNextSampleFrame()[<span class="number">0</span>];</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> data;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="四、计算-Power（纵坐标）"><a href="#四、计算-Power（纵坐标）" class="headerlink" title="四、计算 Power（纵坐标）"></a>四、计算 Power（纵坐标）</h2><p>计算 FFT 使用 <a target="_blank" rel="noopener" href="https://www.mathdotnet.com/">Math.Net</a>。做信号分析一般使用 MATLAB 和 Python 用得多一些，在信号处理方面 .Net 中工具支持相对较弱。NAudio 及其他库也可以计算 FFT，但 Math.Net 比 NAudio 等更完善一些。</p>
+<p>备注：开源项目 FftSharp 看其源码发现 Window 函数的计算公式有误，直接抛弃。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> System.Numerics;</span><br><span class="line"><span class="keyword">using</span> MathNet.Numerics.IntegralTransforms;</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> <span class="built_in">int</span> FFTLength = <span class="number">2048</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 0. 准备数据</span></span><br><span class="line"><span class="comment">// Note: 读取 2048 个采样</span></span><br><span class="line"><span class="keyword">var</span> samples = <span class="keyword">new</span> <span class="built_in">float</span>[FFTLength];</span><br><span class="line"></span><br><span class="line"><span class="comment">// 1.使用窗口函数创建窗口</span></span><br><span class="line"><span class="keyword">var</span> window = MathNet.Numerics.Window.Hann(FFTLength);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 2.将 float 采样转换为虚数为0的复数，并能应用窗口(点积)</span></span><br><span class="line"><span class="comment">// Note: 因为 Math.Net 没有类似于 numpy.fft.rfft 的方法，故需先转换成复数。fft 变量作为 Fourier.Forward 的输入和输出。</span></span><br><span class="line"><span class="keyword">var</span> fft = <span class="keyword">new</span> Complex[numberOfSamples];</span><br><span class="line"><span class="keyword">for</span> (<span class="built_in">int</span> i = <span class="number">0</span>; i &lt; numberOfSamples; i++)</span><br><span class="line">&#123;</span><br><span class="line">    fft[i] = <span class="keyword">new</span> Complex(samples[i] * window[i], <span class="number">0.0</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 3. FFT</span></span><br><span class="line">Fourier.Forward(fft, FourierOptions.Matlab);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 4. 获取音量</span></span><br><span class="line"><span class="comment">// Note: referenceValue: 参考值。用于 dB FS 拉伸。int16 是 32768, float 是 1。</span></span><br><span class="line"><span class="keyword">var</span> dbFS = <span class="keyword">new</span> <span class="built_in">double</span>[realFFTCount];</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; realFFTCount; i++)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// Scale the magnitude of FFT by window and factor of 2, because we are using half of FFT spectrum.</span></span><br><span class="line">    <span class="keyword">var</span> abs = Complex.Abs(fft[i]);</span><br><span class="line">    <span class="keyword">var</span> magnitude = abs * <span class="number">2</span> / window.Sum();</span><br><span class="line">    <span class="comment">// Convert to dBFS</span></span><br><span class="line">    dbFS[i] = <span class="number">20</span> * Math.Log10(magnitude / <span class="number">1.0</span><span class="comment">/*referenceValue*/</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、计算频率（横坐标）"><a href="#五、计算频率（横坐标）" class="headerlink" title="五、计算频率（横坐标）"></a>五、计算频率（横坐标）</h2><p>根据生成的 FFT 的数量生成一个集合。如果是 FFT 长度是 2048，则生成 1024 个区间共 1025 个点；每个点的值表示频率明确标识是哪个 Hz —— 想象5根手指4条逢。</p>
+<figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> realFFTCount = FFTLength / <span class="number">2</span> + <span class="number">1</span>;</span><br><span class="line"><span class="keyword">var</span> frequencies = Enumerable.Range(<span class="number">0</span>, realFFTCount).Select(m =&gt; (<span class="built_in">double</span>)m / FFTLength / SampleRate).ToArray();</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、封装"><a href="#六、封装" class="headerlink" title="六、封装"></a>六、封装</h2><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">PowerSpectrumGenerator</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">double</span>[] window;</span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">double</span> windowSum;</span><br><span class="line">    <span class="keyword">private</span> Complex[] fft;</span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">double</span>[] dbFS;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">int</span> _sampleRate;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">int</span> SampleRate</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">get</span></span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">return</span> _sampleRate;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">set</span></span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">if</span> (<span class="keyword">value</span> != _sampleRate)</span><br><span class="line">            &#123;</span><br><span class="line">                _sampleRate = <span class="keyword">value</span>;</span><br><span class="line">                ResetSampleRateOrFFTLength();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">int</span> _fftLength;</span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">int</span> FFTLength</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">get</span></span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">return</span> _fftLength;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">set</span></span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">if</span> (<span class="keyword">value</span> != _fftLength)</span><br><span class="line">            &#123;</span><br><span class="line">                _fftLength = <span class="keyword">value</span>;</span><br><span class="line">                ResetSampleRateOrFFTLength();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">double</span>[] Frequencies &#123; <span class="keyword">get</span>; <span class="keyword">private</span> <span class="keyword">set</span>; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">PowerSpectrumGenerator</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">PowerSpectrumGenerator</span>(<span class="params"><span class="built_in">int</span> sampleRate, <span class="built_in">int</span> fftLength</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        _sampleRate = sampleRate;</span><br><span class="line">        _fftLength = fftLength;</span><br><span class="line">        ResetSampleRateOrFFTLength();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> 计算 Power</span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;param name=&quot;width&quot;&gt;</span><span class="doctag">&lt;/param&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;returns&gt;</span><span class="doctag">&lt;/returns&gt;</span></span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="built_in">double</span>[] <span class="title">Compute</span>(<span class="params"><span class="built_in">float</span>[] samples</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">if</span> (samples == <span class="literal">null</span> || samples.Length != FFTLength)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentException(<span class="string">&quot;采样数请保持和 fftLength 长度一致&quot;</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">//referenceValue: 参考值。用于 dB FS 拉伸。int16 是 32768, float 是 1。</span></span><br><span class="line">        <span class="keyword">const</span> <span class="built_in">double</span> referenceValue = <span class="number">1.0</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">var</span> numberOfSamples = samples.Length;</span><br><span class="line">        <span class="keyword">var</span> realFFTCount = numberOfSamples / <span class="number">2</span> + <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Note: fft 变量可复用，不用每次构造。</span></span><br><span class="line">        <span class="keyword">if</span> (fft == <span class="literal">null</span> || fft.Length &lt; numberOfSamples)</span><br><span class="line">        &#123;</span><br><span class="line">            fft = <span class="keyword">new</span> Complex[numberOfSamples];</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 该 for 循环有两个作用：</span></span><br><span class="line">        <span class="comment">// 1. 将采样集合和窗口进行点积（Dot product）；</span></span><br><span class="line">        <span class="comment">// 2. Math.Net 没有类似于 numpy.fft.rfft 方法，故构造虚数为 0 的复数。</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="built_in">int</span> i = <span class="number">0</span>; i &lt; numberOfSamples; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            fft[i] = <span class="keyword">new</span> Complex(samples[i] * window[i], <span class="number">0.0</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// fft 变量作为Fourier.Forward的输入和输出。</span></span><br><span class="line">        Fourier.Forward(fft, FourierOptions.Matlab);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span>(dbFS == <span class="literal">null</span> || dbFS.Length &lt; realFFTCount)</span><br><span class="line">        &#123;</span><br><span class="line">            dbFS = <span class="keyword">new</span> <span class="built_in">double</span>[realFFTCount];</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; realFFTCount; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// Scale the magnitude of FFT by window and factor of 2, because we are using half of FFT spectrum.</span></span><br><span class="line">            <span class="keyword">var</span> abs = Complex.Abs(fft[i]);</span><br><span class="line">            <span class="keyword">var</span> magnitude = abs * <span class="number">2</span> / windowSum;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// Convert to dBFS</span></span><br><span class="line">            dbFS[i] = <span class="number">20</span> * Math.Log10(magnitude / referenceValue);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> dbFS;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">ResetSampleRateOrFFTLength</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">var</span> realFFTCount = _fftLength / <span class="number">2</span> + <span class="number">1</span>;</span><br><span class="line">        Frequencies = Enumerable.Range(<span class="number">0</span>, realFFTCount).Select(m =&gt; (<span class="built_in">double</span>)m / ((<span class="built_in">double</span>)_fftLength / _sampleRate)).ToArray();</span><br><span class="line"></span><br><span class="line">        window = MathNet.Numerics.Window.Hann(_fftLength);</span><br><span class="line">        windowSum = window.Sum();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="七、绘图"><a href="#七、绘图" class="headerlink" title="七、绘图"></a>七、绘图</h2><p>绘图采用 <a target="_blank" rel="noopener" href="https://github.com/oxyplot/oxyplot">OxyPlot</a> 。如果要更好性能，建议用 DirectX 绘制。<br>在获取横纵两组数据后，就可以使用 OxPlot 绘制出来了。但获取的数据封装格式不符合 OxPlot，做些小调整即可。</p>
+<h3 id="1、创建-ViewModel"><a href="#1、创建-ViewModel" class="headerlink" title="1、创建 ViewModel"></a>1、创建 ViewModel</h3><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">MainViewModel</span> : <span class="title">INotifyPropertyChanged</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">private</span> LineSeries _lineSeries = <span class="keyword">new</span> LineSeries &#123; MarkerType = MarkerType.Circle, Color = OxyColor.Parse(<span class="string">&quot;#00FF00&quot;</span>) &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MainViewModel</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        _mainModel = <span class="keyword">new</span> PlotModel &#123; Title = <span class="string">&quot;Spectrum Analyzer&quot;</span>, TitleColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>), Background = OxyColor.Parse(<span class="string">&quot;#000000&quot;</span>) &#125;;</span><br><span class="line">        _mainModel.Axes.Add(<span class="keyword">new</span> LinearAxis</span><br><span class="line">        &#123;</span><br><span class="line">            Position = AxisPosition.Bottom,</span><br><span class="line">            AxislineStyle = LineStyle.Solid,</span><br><span class="line">            AxislineColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            MajorGridlineStyle = LineStyle.Solid,</span><br><span class="line">            MajorGridlineColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            MinorGridlineStyle = LineStyle.Dot,</span><br><span class="line">            MinorGridlineColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            TextColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            TickStyle = TickStyle.None,</span><br><span class="line">            Minimum = <span class="number">0</span>,</span><br><span class="line">            Maximum = <span class="number">22050</span>,</span><br><span class="line">            IsZoomEnabled = <span class="literal">false</span>,</span><br><span class="line">            Title = <span class="string">&quot;Frequencies(Hz)&quot;</span>,</span><br><span class="line">            TitleColor = OxyColor.Parse(<span class="string">&quot;#00CDCD&quot;</span>),</span><br><span class="line">        &#125;);</span><br><span class="line">        _mainModel.Axes.Add(<span class="keyword">new</span> LinearAxis</span><br><span class="line">        &#123;</span><br><span class="line">            Position = AxisPosition.Left,</span><br><span class="line">            AxislineStyle = LineStyle.Solid,</span><br><span class="line">            AxislineColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            MajorGridlineStyle = LineStyle.Solid,</span><br><span class="line">            MajorGridlineColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            MinorGridlineStyle = LineStyle.Dot,</span><br><span class="line">            MinorGridlineColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            TextColor = OxyColor.Parse(<span class="string">&quot;#E8E8E8&quot;</span>),</span><br><span class="line">            TickStyle = TickStyle.None,</span><br><span class="line">            Minimum = <span class="number">-200</span>,</span><br><span class="line">            Maximum = <span class="number">20</span>,</span><br><span class="line">            AbsoluteMinimum = <span class="number">-214</span>,</span><br><span class="line">            AbsoluteMaximum = <span class="number">44</span>,</span><br><span class="line">            IsZoomEnabled = <span class="literal">true</span>,</span><br><span class="line">            Title = <span class="string">&quot;Amplitude(dB FS)&quot;</span>,</span><br><span class="line">            TitleColor = OxyColor.Parse(<span class="string">&quot;#00CDCD&quot;</span>)</span><br><span class="line">        &#125;);</span><br><span class="line">        _mainModel.Series.Add(<span class="keyword">new</span> LineSeries</span><br><span class="line">        &#123;</span><br><span class="line">            MarkerSize = <span class="number">1</span>,</span><br><span class="line">            Color = OxyColor.Parse(<span class="string">&quot;#00FF00&quot;</span>)</span><br><span class="line">        &#125;);</span><br><span class="line">        _mainModel.Series.Add(_lineSeries);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> PlotModel _mainModel;</span><br><span class="line">    <span class="keyword">public</span> PlotModel MainModel</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">get</span> &#123; <span class="keyword">return</span> _mainModel; &#125;</span><br><span class="line">        <span class="keyword">set</span> &#123; _mainModel = <span class="keyword">value</span>; NotifyPropertyChanged(<span class="string">&quot;MainModel&quot;</span>); &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">Update</span>(<span class="params"><span class="built_in">double</span>[] frequencies, <span class="built_in">double</span>[] dbFS</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="comment">// X 坐标可能根据频率范围改变</span></span><br><span class="line">        <span class="keyword">var</span> minFrequencie = frequencies.Min();</span><br><span class="line">        <span class="keyword">var</span> maxFrequencie = frequencies.Max();</span><br><span class="line">        _mainModel.Axes[<span class="number">0</span>].Minimum = minFrequencie;</span><br><span class="line">        _mainModel.Axes[<span class="number">0</span>].Maximum = maxFrequencie;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Y 坐标的最小值可能根据最小音量改变</span></span><br><span class="line">        <span class="keyword">var</span> mindBFS = dbFS.Min();</span><br><span class="line">        _mainModel.Axes[<span class="number">1</span>].Minimum = mindBFS;</span><br><span class="line"></span><br><span class="line">        _lineSeries.Points.Clear();</span><br><span class="line">        <span class="keyword">for</span>(<span class="keyword">var</span> i = <span class="number">0</span>; i &lt;dbFS.Length; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">var</span> x = frequencies[i];</span><br><span class="line">            <span class="keyword">var</span> y = dbFS[i];</span><br><span class="line">            _lineSeries.Points.Add(<span class="keyword">new</span> DataPoint(x, y));</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        NotifyPropertyChanged(<span class="string">&quot;MainModel&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">#<span class="meta-keyword">region</span> NotifyPropertyChanged</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">event</span> PropertyChangedEventHandler PropertyChanged;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">NotifyPropertyChanged</span>(<span class="params"><span class="built_in">string</span> info</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        PropertyChanged?.Invoke(<span class="keyword">this</span>, <span class="keyword">new</span> PropertyChangedEventArgs(info));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">#<span class="meta-keyword">endregion</span></span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2、修改-MainWindow-xaml"><a href="#2、修改-MainWindow-xaml" class="headerlink" title="2、修改 MainWindow.xaml"></a>2、修改 MainWindow.xaml</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">Window</span> <span class="attr">x:Class</span>=<span class="string">&quot;Tubumu.Audio.SpectrumAnalyzer.MainWindow&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">xmlns</span>=<span class="string">&quot;http://schemas.microsoft.com/winfx/2006/xaml/presentation&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">xmlns:x</span>=<span class="string">&quot;http://schemas.microsoft.com/winfx/2006/xaml&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">xmlns:d</span>=<span class="string">&quot;http://schemas.microsoft.com/expression/blend/2008&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">xmlns:mc</span>=<span class="string">&quot;http://schemas.openxmlformats.org/markup-compatibility/2006&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">xmlns:local</span>=<span class="string">&quot;clr-namespace:Tubumu.Audio.SpectrumAnalyzer&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">xmlns:viewModels</span>=<span class="string">&quot;clr-namespace:Tubumu.Audio.SpectrumAnalyzer.ViewModels&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">xmlns:oxy</span>=<span class="string">&quot;clr-namespace:OxyPlot.Wpf;assembly=OxyPlot.Wpf&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">mc:Ignorable</span>=<span class="string">&quot;d&quot;</span></span></span><br><span class="line"><span class="tag">        <span class="attr">Title</span>=<span class="string">&quot;Spectrum Analyzer&quot;</span> <span class="attr">Height</span>=<span class="string">&quot;600&quot;</span> <span class="attr">Width</span>=<span class="string">&quot;800&quot;</span> <span class="attr">Loaded</span>=<span class="string">&quot;Window_Loaded&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">Grid</span> <span class="attr">Background</span>=<span class="string">&quot;Black&quot;</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">Grid.ColumnDefinitions</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">ColumnDefinition</span>/&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">ColumnDefinition</span> <span class="attr">Width</span>=<span class="string">&quot;20&quot;</span>/&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">Grid.ColumnDefinitions</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">oxy:PlotView</span> <span class="attr">Model</span>=<span class="string">&quot;&#123;Binding MainModel&#125;&quot;</span> <span class="attr">Grid.Column</span>=<span class="string">&quot;0&quot;</span>/&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">Grid</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">Window</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3、修改-MainWindow-xaml-cs"><a href="#3、修改-MainWindow-xaml-cs" class="headerlink" title="3、修改 MainWindow.xaml.cs"></a>3、修改 MainWindow.xaml.cs</h3><figure class="highlight c#"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> MainWindow.xaml 的交互逻辑</span></span><br><span class="line"><span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">partial</span> <span class="keyword">class</span> <span class="title">MainWindow</span> : <span class="title">Window</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">private</span> PowerSpectrumGenerator _powerSpectrumGenerator = <span class="keyword">new</span> PowerSpectrumGenerator();</span><br><span class="line">    <span class="keyword">private</span> MainViewModel _mainViewModel = <span class="keyword">new</span> MainViewModel();</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MainWindow</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        InitializeComponent();</span><br><span class="line">        DataContext = _mainViewModel;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">Window_Loaded</span>(<span class="params"><span class="built_in">object</span> sender, RoutedEventArgs e</span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">var</span> file = <span class="string">@&quot;C:\your\wav\file.wav&quot;</span>;</span><br><span class="line"></span><br><span class="line">        ReadWavFile(file);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;summary&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> 从 Wav 文件中读取指定数量的采样</span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;para&gt;</span>Note: 如果对多声道音频文件进行操作，可进行改写。<span class="doctag">&lt;/para&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;/summary&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;param name=&quot;wavFile&quot;&gt;</span><span class="doctag">&lt;/param&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;param name=&quot;numberOfSamples&quot;&gt;</span><span class="doctag">&lt;/param&gt;</span></span></span><br><span class="line">    <span class="comment"><span class="doctag">///</span> <span class="doctag">&lt;returns&gt;</span><span class="doctag">&lt;/returns&gt;</span></span></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="built_in">float</span>[] <span class="title">ReadWavFile</span>(<span class="params"><span class="built_in">string</span> wavFile, <span class="built_in">int</span> numberOfSamples = <span class="number">2048</span></span>)</span></span><br><span class="line"><span class="function"></span>    &#123;</span><br><span class="line">        <span class="keyword">using</span> (<span class="keyword">var</span> wfr = <span class="keyword">new</span> WaveFileReader(wavFile))</span><br><span class="line">        &#123;</span><br><span class="line">            _powerSpectrumGenerator.SampleRate = wfr.WaveFormat.SampleRate;</span><br><span class="line">            _powerSpectrumGenerator.FFTLength = numberOfSamples;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">var</span> data = <span class="keyword">new</span> <span class="built_in">float</span>[numberOfSamples];</span><br><span class="line">            <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; numberOfSamples; i++)</span><br><span class="line">            &#123;</span><br><span class="line">                data[i] = wfr.ReadNextSampleFrame()[<span class="number">0</span>];</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">var</span> dbFS = _powerSpectrumGenerator.Compute(data);</span><br><span class="line">            _mainViewModel.Update(_powerSpectrumGenerator.Frequencies, dbFS);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">return</span> data;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="八、效果图"><a href="#八、效果图" class="headerlink" title="八、效果图"></a>八、效果图</h2><p><img src="/postimages/spectrum-analyzer-01/001.png"><br>图2：本文生成</p>
+<p><img src="/postimages/spectrum-analyzer-01/002.png"><br>图3：Audition生成</p>
+<h2 id="九、包依赖"><a href="#九、包依赖" class="headerlink" title="九、包依赖"></a>九、包依赖</h2><ol>
+<li><a target="_blank" rel="noopener" href="https://github.com/naudio/NAudio">NAudo</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.mathdotnet.com/">Math.Net</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.nuget.org/packages/System.Runtime.Numerics/">System.Runtime.Numerics</a></li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a target="_blank" rel="noopener" href="https://dsp.stackexchange.com/questions/32076/fft-to-spectrum-in-decibel">https://dsp.stackexchange.com/questions/32076/fft-to-spectrum-in-decibel</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/weixin_42930928/article/details/89143908">https://blog.csdn.net/weixin_42930928/article/details/89143908</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/luge/p/Wpf_Oxyplot_Sample.html">https://www.cnblogs.com/luge/p/Wpf_Oxyplot_Sample.html</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Audio/" rel="tag"># Audio</a>
+              <a href="/tags/FFT/" rel="tag"># FFT</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/05/05/mediasoup-01/" rel="prev" title="使用 ASP.NET Core 实现 mediasoup 的信令服务器">
+      <i class="fa fa-chevron-left"></i> 使用 ASP.NET Core 实现 mediasoup 的信令服务器
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/11/01/ffmpeg-filters-description/" rel="next" title="FFmpeg filters 分析：简述">
+      FFmpeg filters 分析：简述 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="nav-text">一、概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%87%86%E5%A4%87%E9%9F%B3%E9%A2%91%E6%96%87%E4%BB%B6"><span class="nav-text">二、准备音频文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E8%AF%BB%E5%8F%96%E9%9F%B3%E9%A2%91%E6%96%87%E4%BB%B6"><span class="nav-text">三、读取音频文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E8%AE%A1%E7%AE%97-Power%EF%BC%88%E7%BA%B5%E5%9D%90%E6%A0%87%EF%BC%89"><span class="nav-text">四、计算 Power（纵坐标）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E8%AE%A1%E7%AE%97%E9%A2%91%E7%8E%87%EF%BC%88%E6%A8%AA%E5%9D%90%E6%A0%87%EF%BC%89"><span class="nav-text">五、计算频率（横坐标）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%B0%81%E8%A3%85"><span class="nav-text">六、封装</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E7%BB%98%E5%9B%BE"><span class="nav-text">七、绘图</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1%E3%80%81%E5%88%9B%E5%BB%BA-ViewModel"><span class="nav-text">1、创建 ViewModel</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E3%80%81%E4%BF%AE%E6%94%B9-MainWindow-xaml"><span class="nav-text">2、修改 MainWindow.xaml</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3%E3%80%81%E4%BF%AE%E6%94%B9-MainWindow-xaml-cs"><span class="nav-text">3、修改 MainWindow.xaml.cs</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E6%95%88%E6%9E%9C%E5%9B%BE"><span class="nav-text">八、效果图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B9%9D%E3%80%81%E5%8C%85%E4%BE%9D%E8%B5%96"><span class="nav-text">九、包依赖</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Alby"
+      src="/images/avatar200x200.png">
+  <p class="site-author-name" itemprop="name">Alby</p>
+  <div class="site-description" itemprop="description">Run.</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">35</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albyho" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albyho" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Alby Email: echo "YWxieUBmb3htYWlsLmNvbQo=" | base64 -D</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://mist.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Mist</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
